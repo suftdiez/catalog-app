@@ -1,12 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'dart:convert'; // Import untuk mengolah JSON
+import 'package:http/http.dart' as http; // Import untuk koneksi internet
 
-// --- BAGIAN 1: DATA MODEL ---
+// --- BAGIAN 1: DATA MODEL (Update Bab 3.2: JSON Parsing) ---
 class Product {
   final String name;
   final String price;
   final String category;
-  final String condition; // FIELD BARU: Kondisi Barang (Baru/Bekas)
+  final String condition;
   final String description;
   final String imageUrl;
 
@@ -18,9 +20,22 @@ class Product {
     required this.description,
     this.imageUrl = 'https://upload.wikimedia.org/wikipedia/commons/1/14/Product_sample_icon_picture.png',
   });
+
+  // TEORI 3.2: Factory Method untuk mengubah JSON dari API menjadi Object Product
+  factory Product.fromJson(Map<String, dynamic> json) {
+    return Product(
+      name: json['title'] ?? 'Tanpa Nama', // Ambil judul dari API
+      // API mengembalikan harga dalam Dolar (angka), kita ubah jadi string Rupiah simulasi
+      price: "Rp ${(json['price'] * 15000).toInt()}",
+      category: "Elektronik", // Default kategori karena kita ambil dari API elektronik
+      condition: "Baru", // Default kondisi
+      description: json['description'] ?? '-',
+      imageUrl: json['image'] ?? '', // Ambil URL gambar asli dari API
+    );
+  }
 }
 
-// --- BAGIAN 2: LOGIC FORMAT RUPIAH ---
+// --- BAGIAN 2: FORMATTER RUPIAH ---
 class CurrencyInputFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
@@ -82,7 +97,7 @@ class LandingPage extends StatelessWidget {
               const SizedBox(height: 20),
               const Text("MyGadget Store", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
-              const Text("Temukan gadget impianmu di sini.", style: TextStyle(color: Colors.grey, fontSize: 16)),
+              const Text("Katalog Gadget Online Terlengkap", style: TextStyle(color: Colors.grey, fontSize: 16)),
               const SizedBox(height: 40),
               const ProfileCard(name: "Nama Mahasiswa", role: "App Developer"),
               const SizedBox(height: 40),
@@ -142,7 +157,7 @@ class ProfileCard extends StatelessWidget {
   }
 }
 
-// --- BAGIAN 5: HALAMAN KATALOG ---
+// --- BAGIAN 5: HALAMAN KATALOG (UPDATE BAB 3.2: API) ---
 class CatalogPage extends StatefulWidget {
   const CatalogPage({super.key});
   @override
@@ -150,10 +165,50 @@ class CatalogPage extends StatefulWidget {
 }
 
 class _CatalogPageState extends State<CatalogPage> {
-  List<Product> productList = [
-    Product(name: "MacBook Air M2", price: "Rp 18.999.000", category: "Laptop", condition: "Baru", description: "Chip M2 super cepat."),
-    Product(name: "iPhone 15 Pro", price: "Rp 20.999.000", category: "Smartphone", condition: "Baru", description: "Titanium design."),
-  ];
+  // List produk campuran (API + Lokal)
+  List<Product> productList = [];
+  bool isLoading = true; // Status loading
+
+  @override
+  void initState() {
+    super.initState();
+    fetchProducts(); // Panggil fungsi ambil data saat halaman dibuka
+  }
+
+  // PRAKTIK 3.2: HTTP GET Request
+  Future<void> fetchProducts() async {
+    try {
+      // 1. Request ke API Publik (FakeStoreAPI kategori Elektronik)
+      final response = await http.get(Uri.parse('https://fakestoreapi.com/products/category/electronics'));
+
+      if (response.statusCode == 200) {
+        // 2. Parsing JSON
+        List<dynamic> data = json.decode(response.body);
+
+        setState(() {
+          // 3. Masukkan data API ke list kita
+          productList = data.map((json) => Product.fromJson(json)).toList();
+
+          // Opsional: Tambahkan data dummy lokal jika mau
+          productList.add(Product(
+            name: "Xiaomi Redmi 5A (Lokal)",
+            price: "Rp 900.000",
+            category: "Smartphone",
+            condition: "Bekas",
+            description: "Hp legenda awet",
+          ));
+
+          isLoading = false; // Loading selesai
+        });
+      } else {
+        throw Exception('Gagal load data');
+      }
+    } catch (e) {
+      setState(() => isLoading = false);
+      print("Error: $e");
+      // Bisa tampilkan snackbar error disini
+    }
+  }
 
   void _addProduct(Product newProduct) {
     setState(() { productList.add(newProduct); });
@@ -179,8 +234,11 @@ class _CatalogPageState extends State<CatalogPage> {
         backgroundColor: Colors.blueAccent,
         child: const Icon(Icons.add, color: Colors.white),
       ),
-      body: productList.isEmpty
-          ? const Center(child: Text("Belum ada produk"))
+      // TAMPILKAN LOADING JIKA DATA BELUM SIAP
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : productList.isEmpty
+          ? const Center(child: Text("Gagal memuat data / Kosong"))
           : ListView.builder(
         padding: const EdgeInsets.only(bottom: 80),
         itemCount: productList.length,
@@ -189,7 +247,6 @@ class _CatalogPageState extends State<CatalogPage> {
           return Dismissible(
             key: Key(product.name + index.toString()),
             direction: DismissDirection.endToStart,
-            // INTERAKSI: Dialog Konfirmasi Hapus (Materi Bab 3)
             confirmDismiss: (direction) async {
               return await showDialog(
                 context: context,
@@ -222,26 +279,25 @@ class _CatalogPageState extends State<CatalogPage> {
                 leading: Container(
                   width: 60,
                   height: 60,
-                  decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10)),
-                  child: Icon(
-                      product.category == "Laptop" ? Icons.computer : product.category == "Smartphone" ? Icons.smartphone : Icons.headphones,
-                      color: Colors.blueAccent, size: 30),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
+                  // Update: Menampilkan Gambar dari URL API
+                  child: product.imageUrl.isNotEmpty
+                      ? Image.network(product.imageUrl, fit: BoxFit.contain, errorBuilder: (c,e,s) => const Icon(Icons.broken_image))
+                      : const Icon(Icons.devices, color: Colors.blueAccent, size: 30),
                 ),
-                title: Text(product.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                title: Text(product.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 5),
                     Row(
                       children: [
-                        // Badge Kategori
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(color: Colors.orange.shade100, borderRadius: BorderRadius.circular(5)),
                           child: Text(product.category, style: TextStyle(fontSize: 10, color: Colors.orange.shade800, fontWeight: FontWeight.bold)),
                         ),
                         const SizedBox(width: 5),
-                        // Badge Kondisi (BARU!)
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(color: product.condition == "Baru" ? Colors.green.shade100 : Colors.grey.shade300, borderRadius: BorderRadius.circular(5)),
@@ -262,7 +318,7 @@ class _CatalogPageState extends State<CatalogPage> {
   }
 }
 
-// --- BAGIAN 6: FORM INPUT (MAX VERSION) ---
+// --- BAGIAN 6: FORM INPUT (Sama seperti sebelumnya) ---
 class AddProductPage extends StatefulWidget {
   const AddProductPage({super.key});
   @override
@@ -275,10 +331,7 @@ class _AddProductPageState extends State<AddProductPage> {
   final _priceController = TextEditingController();
   final _descController = TextEditingController();
   String? _selectedCategory;
-
-  // VARIABEL BARU: RADIO BUTTON
-  String _selectedCondition = "Baru"; // Default pilih Baru
-
+  String _selectedCondition = "Baru";
   final List<String> _categories = ["Smartphone", "Laptop", "Tablet", "Aksesoris", "Lainnya"];
 
   @override
@@ -296,8 +349,6 @@ class _AddProductPageState extends State<AddProductPage> {
               validator: (value) => value!.isEmpty ? 'Nama wajib diisi' : null,
             ),
             const SizedBox(height: 15),
-
-            // DROPDOWN (Poin 3.1)
             DropdownButtonFormField<String>(
               decoration: const InputDecoration(labelText: "Kategori Produk", prefixIcon: Icon(Icons.category)),
               value: _selectedCategory,
@@ -306,31 +357,14 @@ class _AddProductPageState extends State<AddProductPage> {
               validator: (v) => v == null ? 'Pilih salah satu kategori' : null,
             ),
             const SizedBox(height: 15),
-
-            // RADIO BUTTON: KONDISI BARANG (Fitur Maksimal Bab 3!)
             const Text("Kondisi Barang:", style: TextStyle(fontWeight: FontWeight.bold)),
             Row(
               children: [
-                Expanded(
-                  child: RadioListTile<String>(
-                    title: const Text("Baru"),
-                    value: "Baru",
-                    groupValue: _selectedCondition,
-                    onChanged: (value) => setState(() => _selectedCondition = value!),
-                  ),
-                ),
-                Expanded(
-                  child: RadioListTile<String>(
-                    title: const Text("Bekas"),
-                    value: "Bekas",
-                    groupValue: _selectedCondition,
-                    onChanged: (value) => setState(() => _selectedCondition = value!),
-                  ),
-                ),
+                Expanded(child: RadioListTile<String>(title: const Text("Baru"), value: "Baru", groupValue: _selectedCondition, onChanged: (value) => setState(() => _selectedCondition = value!))),
+                Expanded(child: RadioListTile<String>(title: const Text("Bekas"), value: "Bekas", groupValue: _selectedCondition, onChanged: (value) => setState(() => _selectedCondition = value!))),
               ],
             ),
             const SizedBox(height: 15),
-
             TextFormField(
               controller: _priceController,
               keyboardType: TextInputType.number,
@@ -355,7 +389,7 @@ class _AddProductPageState extends State<AddProductPage> {
                       name: _nameController.text,
                       price: "Rp ${_priceController.text}",
                       category: _selectedCategory!,
-                      condition: _selectedCondition, // Kirim data kondisi
+                      condition: _selectedCondition,
                       description: _descController.text,
                     );
                     Navigator.pop(context, newProduct);
