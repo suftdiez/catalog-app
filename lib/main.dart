@@ -6,6 +6,7 @@ class Product {
   final String name;
   final String price;
   final String category;
+  final String condition; // FIELD BARU: Kondisi Barang (Baru/Bekas)
   final String description;
   final String imageUrl;
 
@@ -13,6 +14,7 @@ class Product {
     required this.name,
     required this.price,
     required this.category,
+    required this.condition,
     required this.description,
     this.imageUrl = 'https://upload.wikimedia.org/wikipedia/commons/1/14/Product_sample_icon_picture.png',
   });
@@ -63,7 +65,7 @@ class MyGadgetApp extends StatelessWidget {
   }
 }
 
-// --- BAGIAN 4: HALAMAN DEPAN (LANDING PAGE) ---
+// --- BAGIAN 4: HALAMAN DEPAN ---
 class LandingPage extends StatelessWidget {
   const LandingPage({super.key});
 
@@ -78,44 +80,23 @@ class LandingPage extends StatelessWidget {
             children: [
               const Icon(Icons.devices, size: 80, color: Colors.blueAccent),
               const SizedBox(height: 20),
-              const Text(
-                "MyGadget Store",
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
-              ),
+              const Text("MyGadget Store", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
-              const Text(
-                "Temukan gadget impianmu di sini.",
-                style: TextStyle(color: Colors.grey, fontSize: 16),
-              ),
-
+              const Text("Temukan gadget impianmu di sini.", style: TextStyle(color: Colors.grey, fontSize: 16)),
               const SizedBox(height: 40),
-
-              // --- TAMBAHAN BAB 1: PROFILE CARD ---
-              // Memenuhi syarat: Custom Stateless Widget, Row, Container Styling
-              const ProfileCard(
-                name: "Nama Mahasiswa", // GANTI DENGAN NAMAMU
-                role: "App Developer",
-              ),
-              // ------------------------------------
-
+              const ProfileCard(name: "Nama Mahasiswa", role: "App Developer"),
               const SizedBox(height: 40),
-
               SizedBox(
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
                   onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const CatalogPage()),
-                    );
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => const CatalogPage()));
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blueAccent,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                   child: const Text("Masuk ke Katalog", style: TextStyle(fontSize: 18)),
                 ),
@@ -128,11 +109,10 @@ class LandingPage extends StatelessWidget {
   }
 }
 
-// --- WIDGET PROFILE CARD (SYARAT BAB 1) ---
+// WIDGET PROFILE CARD
 class ProfileCard extends StatelessWidget {
   final String name;
   final String role;
-
   const ProfileCard({super.key, required this.name, required this.role});
 
   @override
@@ -141,26 +121,15 @@ class ProfileCard extends StatelessWidget {
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(15), // Styling: Rounded Corner
-        border: Border.all(color: Colors.blue.withOpacity(0.2)), // Styling: Border
-        boxShadow: [ // Styling: Shadow
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.1),
-            spreadRadius: 2,
-            blurRadius: 10,
-            offset: const Offset(0, 5),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Colors.blue.withOpacity(0.2)),
+        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), spreadRadius: 2, blurRadius: 10, offset: const Offset(0, 5))],
       ),
-      child: Row( // Layout: Row (Horizontal)
+      child: Row(
         children: [
-          const CircleAvatar(
-            radius: 25,
-            backgroundColor: Colors.blueAccent,
-            child: Icon(Icons.person, color: Colors.white),
-          ),
+          const CircleAvatar(radius: 25, backgroundColor: Colors.blueAccent, child: Icon(Icons.person, color: Colors.white)),
           const SizedBox(width: 15),
-          Column( // Layout: Column (Vertikal) inside Row
+          Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
@@ -176,32 +145,23 @@ class ProfileCard extends StatelessWidget {
 // --- BAGIAN 5: HALAMAN KATALOG ---
 class CatalogPage extends StatefulWidget {
   const CatalogPage({super.key});
-
   @override
   State<CatalogPage> createState() => _CatalogPageState();
 }
 
 class _CatalogPageState extends State<CatalogPage> {
   List<Product> productList = [
-    Product(name: "MacBook Air M2", price: "Rp 18.999.000", category: "Laptop", description: "Chip M2 super cepat."),
-    Product(name: "iPhone 15 Pro", price: "Rp 20.999.000", category: "Smartphone", description: "Titanium design."),
-    Product(name: "Sony WH-1000XM5", price: "Rp 5.999.000", category: "Aksesoris", description: "Headphone noise cancelling."),
+    Product(name: "MacBook Air M2", price: "Rp 18.999.000", category: "Laptop", condition: "Baru", description: "Chip M2 super cepat."),
+    Product(name: "iPhone 15 Pro", price: "Rp 20.999.000", category: "Smartphone", condition: "Baru", description: "Titanium design."),
   ];
 
   void _addProduct(Product newProduct) {
-    setState(() {
-      productList.add(newProduct);
-    });
+    setState(() { productList.add(newProduct); });
   }
 
-  // Fungsi Hapus Data (Untuk Swipe to Dismiss)
   void _removeProduct(int index) {
-    setState(() {
-      productList.removeAt(index);
-    });
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Produk dihapus dari list")),
-    );
+    setState(() { productList.removeAt(index); });
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Produk dihapus")));
   }
 
   @override
@@ -210,15 +170,10 @@ class _CatalogPageState extends State<CatalogPage> {
       appBar: AppBar(title: const Text("Katalog Produk")),
       floatingActionButton: FloatingActionButton(
         onPressed: () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const AddProductPage()),
-          );
+          final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => const AddProductPage()));
           if (result != null && result is Product) {
             _addProduct(result);
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text("Produk berhasil ditambahkan!"), backgroundColor: Colors.green),
-            );
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Produk berhasil ditambahkan!"), backgroundColor: Colors.green));
           }
         },
         backgroundColor: Colors.blueAccent,
@@ -231,27 +186,33 @@ class _CatalogPageState extends State<CatalogPage> {
         itemCount: productList.length,
         itemBuilder: (context, index) {
           final product = productList[index];
-
-          // --- TAMBAHAN BAB 2: SWIPE TO DISMISS ---
-          // Memenuhi syarat: Mengimplementasikan Swipe to Dismiss pada item ListView
           return Dismissible(
-            key: Key(product.name + index.toString()), // Key unik
-            direction: DismissDirection.endToStart, // Geser Kanan ke Kiri
+            key: Key(product.name + index.toString()),
+            direction: DismissDirection.endToStart,
+            // INTERAKSI: Dialog Konfirmasi Hapus (Materi Bab 3)
+            confirmDismiss: (direction) async {
+              return await showDialog(
+                context: context,
+                builder: (BuildContext context) {
+                  return AlertDialog(
+                    title: const Text("Konfirmasi"),
+                    content: const Text("Yakin ingin menghapus produk ini?"),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text("Batal")),
+                      TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text("Hapus", style: TextStyle(color: Colors.red))),
+                    ],
+                  );
+                },
+              );
+            },
             background: Container(
               alignment: Alignment.centerRight,
               padding: const EdgeInsets.only(right: 20),
               margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.redAccent,
-                borderRadius: BorderRadius.circular(15),
-              ),
+              decoration: BoxDecoration(color: Colors.redAccent, borderRadius: BorderRadius.circular(15)),
               child: const Icon(Icons.delete, color: Colors.white),
             ),
-            onDismissed: (direction) {
-              _removeProduct(index);
-            },
-            // ----------------------------------------
-
+            onDismissed: (direction) { _removeProduct(index); },
             child: Card(
               margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
               elevation: 3,
@@ -261,43 +222,37 @@ class _CatalogPageState extends State<CatalogPage> {
                 leading: Container(
                   width: 60,
                   height: 60,
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+                  decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10)),
                   child: Icon(
-                      product.category == "Laptop" ? Icons.computer :
-                      product.category == "Smartphone" ? Icons.smartphone : Icons.headphones,
-                      color: Colors.blueAccent, size: 30
-                  ),
+                      product.category == "Laptop" ? Icons.computer : product.category == "Smartphone" ? Icons.smartphone : Icons.headphones,
+                      color: Colors.blueAccent, size: 30),
                 ),
-                title: Text(
-                  product.name,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                ),
+                title: Text(product.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 subtitle: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 5),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.shade100,
-                        borderRadius: BorderRadius.circular(5),
-                      ),
-                      child: Text(
-                        product.category,
-                        style: TextStyle(fontSize: 10, color: Colors.orange.shade800, fontWeight: FontWeight.bold),
-                      ),
+                    Row(
+                      children: [
+                        // Badge Kategori
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(color: Colors.orange.shade100, borderRadius: BorderRadius.circular(5)),
+                          child: Text(product.category, style: TextStyle(fontSize: 10, color: Colors.orange.shade800, fontWeight: FontWeight.bold)),
+                        ),
+                        const SizedBox(width: 5),
+                        // Badge Kondisi (BARU!)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(color: product.condition == "Baru" ? Colors.green.shade100 : Colors.grey.shade300, borderRadius: BorderRadius.circular(5)),
+                          child: Text(product.condition, style: TextStyle(fontSize: 10, color: product.condition == "Baru" ? Colors.green.shade800 : Colors.black54, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 5),
-                    Text(
-                      product.price,
-                      style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
-                    ),
+                    Text(product.price, style: const TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
                   ],
                 ),
-                trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
               ),
             ),
           );
@@ -307,10 +262,9 @@ class _CatalogPageState extends State<CatalogPage> {
   }
 }
 
-// --- BAGIAN 6: FORM INPUT (TIDAK ADA PERUBAHAN) ---
+// --- BAGIAN 6: FORM INPUT (MAX VERSION) ---
 class AddProductPage extends StatefulWidget {
   const AddProductPage({super.key});
-
   @override
   State<AddProductPage> createState() => _AddProductPageState();
 }
@@ -321,6 +275,10 @@ class _AddProductPageState extends State<AddProductPage> {
   final _priceController = TextEditingController();
   final _descController = TextEditingController();
   String? _selectedCategory;
+
+  // VARIABEL BARU: RADIO BUTTON
+  String _selectedCondition = "Baru"; // Default pilih Baru
+
   final List<String> _categories = ["Smartphone", "Laptop", "Tablet", "Aksesoris", "Lainnya"];
 
   @override
@@ -338,6 +296,8 @@ class _AddProductPageState extends State<AddProductPage> {
               validator: (value) => value!.isEmpty ? 'Nama wajib diisi' : null,
             ),
             const SizedBox(height: 15),
+
+            // DROPDOWN (Poin 3.1)
             DropdownButtonFormField<String>(
               decoration: const InputDecoration(labelText: "Kategori Produk", prefixIcon: Icon(Icons.category)),
               value: _selectedCategory,
@@ -346,19 +306,44 @@ class _AddProductPageState extends State<AddProductPage> {
               validator: (v) => v == null ? 'Pilih salah satu kategori' : null,
             ),
             const SizedBox(height: 15),
+
+            // RADIO BUTTON: KONDISI BARANG (Fitur Maksimal Bab 3!)
+            const Text("Kondisi Barang:", style: TextStyle(fontWeight: FontWeight.bold)),
+            Row(
+              children: [
+                Expanded(
+                  child: RadioListTile<String>(
+                    title: const Text("Baru"),
+                    value: "Baru",
+                    groupValue: _selectedCondition,
+                    onChanged: (value) => setState(() => _selectedCondition = value!),
+                  ),
+                ),
+                Expanded(
+                  child: RadioListTile<String>(
+                    title: const Text("Bekas"),
+                    value: "Bekas",
+                    groupValue: _selectedCondition,
+                    onChanged: (value) => setState(() => _selectedCondition = value!),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 15),
+
             TextFormField(
               controller: _priceController,
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
               decoration: const InputDecoration(labelText: "Harga (Rp)", hintText: "Contoh: 5.000.000", prefixIcon: Icon(Icons.attach_money), prefixText: "Rp "),
-              validator: (v) => v!.isEmpty ? 'Harga wajib diisi' : null,
+              validator: (value) => value!.isEmpty ? 'Harga wajib diisi' : null,
             ),
             const SizedBox(height: 15),
             TextFormField(
               controller: _descController,
               maxLines: 3,
               decoration: const InputDecoration(labelText: "Deskripsi Singkat", prefixIcon: Icon(Icons.description)),
-              validator: (v) => v!.isEmpty ? 'Deskripsi wajib diisi' : null,
+              validator: (value) => value!.isEmpty ? 'Deskripsi wajib diisi' : null,
             ),
             const SizedBox(height: 30),
             SizedBox(
@@ -370,16 +355,13 @@ class _AddProductPageState extends State<AddProductPage> {
                       name: _nameController.text,
                       price: "Rp ${_priceController.text}",
                       category: _selectedCategory!,
+                      condition: _selectedCondition, // Kirim data kondisi
                       description: _descController.text,
                     );
                     Navigator.pop(context, newProduct);
                   }
                 },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blueAccent,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                ),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
                 child: const Text("Simpan Produk", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               ),
             ),
