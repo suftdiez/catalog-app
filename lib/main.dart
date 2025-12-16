@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:convert'; // Untuk encode/decode JSON
+import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart'; // IMPORT WAJIB BAB 4
+import 'package:shared_preferences/shared_preferences.dart';
+// --- IMPORT PACKAGE BARU (BAB 4.2) ---
+import 'package:carousel_slider/carousel_slider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // =======================================================
-// BAGIAN 1: DATA MODEL (Update: Tambah toJson)
+// BAGIAN 1: DATA MODEL
 // =======================================================
 
 class Product {
@@ -25,13 +28,12 @@ class Product {
     this.imageUrl = 'https://upload.wikimedia.org/wikipedia/commons/1/14/Product_sample_icon_picture.png',
   });
 
-  // Digunakan untuk mengubah data JSON dari Internet/Local menjadi Object Product
   factory Product.fromJson(Map<String, dynamic> json) {
     return Product(
-      name: json['title'] ?? json['name'] ?? 'Tanpa Nama', // Support key 'title' (API) atau 'name' (Lokal)
+      name: json['title'] ?? json['name'] ?? 'Tanpa Nama',
       price: json['price'].toString().contains("Rp")
-          ? json['price'] // Jika sudah format Rupiah (Lokal)
-          : "Rp ${(double.parse(json['price'].toString()) * 15000).toInt()}", // Jika dari API (Dolar)
+          ? json['price']
+          : "Rp ${(double.parse(json['price'].toString()) * 15000).toInt()}",
       category: json['category'] ?? 'Elektronik',
       condition: json['condition'] ?? 'Baru',
       description: json['description'] ?? '-',
@@ -39,7 +41,6 @@ class Product {
     );
   }
 
-  // SYARAT BAB 4: Method untuk mengubah Object Product menjadi JSON (agar bisa disimpan text-nya)
   Map<String, dynamic> toJson() {
     return {
       'name': name,
@@ -66,11 +67,10 @@ class CurrencyInputFormatter extends TextInputFormatter {
 }
 
 // =======================================================
-// BAGIAN 2: UTAMA APLIKASI (Cek Login di Awal)
+// BAGIAN 2: UTAMA APLIKASI
 // =======================================================
 
 Future<void> main() async {
-  // SYARAT BAB 4: Cek status login sebelum aplikasi jalan
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
   final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
@@ -100,14 +100,13 @@ class MyGadgetApp extends StatelessWidget {
           contentPadding: EdgeInsets.symmetric(horizontal: 15, vertical: 15),
         ),
       ),
-      // Jika sudah login, langsung ke LandingPage. Jika belum, ke LoginPage.
       home: isLoggedIn ? const LandingPage() : const LoginPage(),
     );
   }
 }
 
 // =======================================================
-// BAGIAN 3: HALAMAN LOGIN (Simpan Data Login)
+// BAGIAN 3: HALAMAN LOGIN
 // =======================================================
 
 class LoginPage extends StatefulWidget {
@@ -123,19 +122,13 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _handleLogin() async {
     if (_formKey.currentState!.validate()) {
-      // SYARAT BAB 4: Simpan status login & username ke Memory HP
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('isLoggedIn', true);
-      await prefs.setString('username', _emailController.text); // Simpan email sebagai username
+      await prefs.setString('username', _emailController.text);
 
       if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const LandingPage()),
-      );
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Login Berhasil & Data Disimpan!"), backgroundColor: Colors.green),
-      );
+      Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LandingPage()));
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Login Berhasil!"), backgroundColor: Colors.green));
     }
   }
 
@@ -157,7 +150,7 @@ class _LoginPageState extends State<LoginPage> {
                 TextFormField(
                   controller: _emailController,
                   decoration: const InputDecoration(labelText: "Email", prefixIcon: Icon(Icons.email), hintText: "contoh@email.com"),
-                  validator: (value) => (value == null || !value.contains('@')) ? 'Email tidak valid (harus ada @)' : null,
+                  validator: (value) => (value == null || !value.contains('@')) ? 'Email tidak valid' : null,
                 ),
                 const SizedBox(height: 15),
                 TextFormField(
@@ -186,18 +179,24 @@ class _LoginPageState extends State<LoginPage> {
 }
 
 // =======================================================
-// BAGIAN 4: HALAMAN DEPAN (Baca Data Username)
+// BAGIAN 4: HALAMAN DEPAN (Update: Carousel Slider)
 // =======================================================
 
 class LandingPage extends StatefulWidget {
   const LandingPage({super.key});
-
   @override
   State<LandingPage> createState() => _LandingPageState();
 }
 
 class _LandingPageState extends State<LandingPage> {
-  String _username = "Pengguna"; // Default name
+  String _username = "Pengguna";
+
+  // List gambar banner (URL placeholder)
+  final List<String> imgList = [
+    'https://img.freepik.com/free-vector/flat-horizontal-banner-template-black-friday-sales_23-2150867493.jpg',
+    'https://img.freepik.com/free-psd/black-friday-super-sale-social-media-banner-template_120329-2128.jpg',
+    'https://img.freepik.com/free-vector/cyber-monday-sale-banner-template_23-2148747625.jpg',
+  ];
 
   @override
   void initState() {
@@ -205,7 +204,6 @@ class _LandingPageState extends State<LandingPage> {
     _loadUsername();
   }
 
-  // SYARAT BAB 4: Ambil nama user yang tersimpan
   Future<void> _loadUsername() async {
     final prefs = await SharedPreferences.getInstance();
     setState(() {
@@ -213,11 +211,9 @@ class _LandingPageState extends State<LandingPage> {
     });
   }
 
-  // Fungsi Logout
   Future<void> _logout() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.clear(); // Hapus semua data (login & list)
-    // Atau prefs.remove('isLoggedIn'); jika ingin hapus login saja
+    await prefs.clear();
     if (!mounted) return;
     Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginPage()));
   }
@@ -232,24 +228,50 @@ class _LandingPageState extends State<LandingPage> {
           IconButton(onPressed: _logout, icon: const Icon(Icons.logout), tooltip: "Logout"),
         ],
       ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.devices, size: 80, color: Colors.blueAccent),
-              const SizedBox(height: 20),
-              const Text("Selamat Datang", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 10),
-              const Text("Katalog Gadget Online Terlengkap", style: TextStyle(color: Colors.grey, fontSize: 16)),
-              const SizedBox(height: 40),
+      body: SingleChildScrollView( // Pakai SingleChildScrollView agar tidak overflow
+        child: Column(
+          children: [
+            const SizedBox(height: 20),
 
-              // Tampilkan Username yang diambil dari Shared Preferences
-              ProfileCard(name: _username, role: "App Developer"),
+            // --- IMPLEMENTASI PACKAGE 1: CAROUSEL SLIDER ---
+            CarouselSlider(
+              options: CarouselOptions(
+                height: 180.0,
+                autoPlay: true, // Gambar gerak sendiri
+                enlargeCenterPage: true,
+                aspectRatio: 16/9,
+                autoPlayCurve: Curves.fastOutSlowIn,
+                enableInfiniteScroll: true,
+                autoPlayAnimationDuration: const Duration(milliseconds: 800),
+                viewportFraction: 0.8,
+              ),
+              items: imgList.map((item) => Container(
+                margin: const EdgeInsets.all(5.0),
+                child: ClipRRect(
+                    borderRadius: const BorderRadius.all(Radius.circular(10.0)),
+                    child: Image.network(item, fit: BoxFit.cover, width: 1000.0)
+                ),
+              )).toList(),
+            ),
+            // -----------------------------------------------
 
-              const SizedBox(height: 40),
-              SizedBox(
+            const SizedBox(height: 20),
+            const Text("Selamat Datang", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            Text("Halo, $_username!", style: const TextStyle(color: Colors.blueAccent, fontSize: 18, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 10),
+            const Text("Temukan gadget impianmu di sini.", style: TextStyle(color: Colors.grey, fontSize: 16)),
+
+            const SizedBox(height: 30),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0),
+              child: ProfileCard(name: _username, role: "Member Gold"),
+            ),
+
+            const SizedBox(height: 30),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0),
+              child: SizedBox(
                 width: double.infinity,
                 height: 50,
                 child: ElevatedButton(
@@ -260,18 +282,33 @@ class _LandingPageState extends State<LandingPage> {
                   child: const Text("Lihat Katalog", style: TextStyle(fontSize: 18)),
                 ),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 40),
+          ],
         ),
       ),
     );
   }
 }
 
+// =======================================================
+// WIDGET PROFILE CARD (Update: URL Launcher)
+// =======================================================
+
 class ProfileCard extends StatelessWidget {
   final String name;
   final String role;
   const ProfileCard({super.key, required this.name, required this.role});
+
+  // --- IMPLEMENTASI PACKAGE 2: URL LAUNCHER ---
+  Future<void> _launchURL() async {
+    // Ganti URL ini dengan link apa saja (Web / WA)
+    final Uri url = Uri.parse('https://flutter.dev');
+    if (!await launchUrl(url)) {
+      throw Exception('Could not launch $url');
+    }
+  }
+  // --------------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -283,19 +320,37 @@ class ProfileCard extends StatelessWidget {
         border: Border.all(color: Colors.blue.withOpacity(0.2)),
         boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), spreadRadius: 2, blurRadius: 10, offset: const Offset(0, 5))],
       ),
-      child: Row(
+      child: Column( // Ubah ke Column agar tombol ada di bawah
         children: [
-          const CircleAvatar(radius: 25, backgroundColor: Colors.blueAccent, child: Icon(Icons.person, color: Colors.white)),
-          const SizedBox(width: 15),
-          Expanded( // Pakai Expanded agar teks panjang tidak error
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                Text(role, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-              ],
-            ),
+          Row(
+            children: [
+              const CircleAvatar(radius: 25, backgroundColor: Colors.blueAccent, child: Icon(Icons.person, color: Colors.white)),
+              const SizedBox(width: 15),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    Text(role, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                  ],
+                ),
+              ),
+            ],
           ),
+          const SizedBox(height: 15),
+          SizedBox(
+            width: double.infinity,
+            height: 35,
+            child: OutlinedButton.icon(
+              onPressed: _launchURL, // Panggil fungsi buka link
+              icon: const Icon(Icons.support_agent, size: 18),
+              label: const Text("Hubungi CS (Web)"),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.blueAccent,
+                side: const BorderSide(color: Colors.blueAccent),
+              ),
+            ),
+          )
         ],
       ),
     );
@@ -303,7 +358,7 @@ class ProfileCard extends StatelessWidget {
 }
 
 // =======================================================
-// BAGIAN 5: KATALOG (Challenge: Simpan List Lokal)
+// BAGIAN 5: KATALOG (Sama seperti sebelumnya)
 // =======================================================
 
 class CatalogPage extends StatefulWidget {
@@ -319,25 +374,20 @@ class _CatalogPageState extends State<CatalogPage> {
   @override
   void initState() {
     super.initState();
-    _loadData(); // Load data saat halaman dibuka
+    _loadData();
   }
 
-  // LOGIKA UTAMA: Cek Lokal dulu, kalau kosong baru ambil API
   Future<void> _loadData() async {
     final prefs = await SharedPreferences.getInstance();
     final String? localData = prefs.getString('products_data');
 
     if (localData != null && localData.isNotEmpty) {
-      // 1. Jika ada data lokal, pakai itu (Offline Mode)
-      print("Mengambil data dari LOKAL");
       List<dynamic> jsonList = jsonDecode(localData);
       setState(() {
         productList = jsonList.map((e) => Product.fromJson(e)).toList();
         isLoading = false;
       });
     } else {
-      // 2. Jika tidak ada, ambil dari API
-      print("Mengambil data dari API");
       await fetchProductsFromApi();
     }
   }
@@ -348,44 +398,26 @@ class _CatalogPageState extends State<CatalogPage> {
       if (response.statusCode == 200) {
         List<dynamic> data = json.decode(response.body);
         List<Product> fetchedProducts = data.map((json) => Product.fromJson(json)).toList();
-
-        setState(() {
-          productList = fetchedProducts;
-          isLoading = false;
-        });
-
-        // Simpan hasil API ke lokal agar besok tidak perlu download lagi
+        setState(() { productList = fetchedProducts; isLoading = false; });
         _saveToLocal();
-      } else {
-        throw Exception('Gagal load data');
-      }
-    } catch (e) {
-      setState(() => isLoading = false);
-      print("Error: $e");
-    }
+      } else { throw Exception('Gagal load data'); }
+    } catch (e) { setState(() => isLoading = false); }
   }
 
-  // Fungsi untuk menyimpan List ke Memory HP
   Future<void> _saveToLocal() async {
     final prefs = await SharedPreferences.getInstance();
-    // Ubah List<Product> menjadi JSON String
     String jsonString = jsonEncode(productList.map((p) => p.toJson()).toList());
     await prefs.setString('products_data', jsonString);
-    print("Data berhasil disimpan ke LOKAL");
   }
 
   void _addProduct(Product newProduct) {
-    setState(() {
-      productList.add(newProduct);
-    });
-    _saveToLocal(); // Simpan otomatis setiap tambah data
+    setState(() { productList.add(newProduct); });
+    _saveToLocal();
   }
 
   void _removeProduct(int index) {
-    setState(() {
-      productList.removeAt(index);
-    });
-    _saveToLocal(); // Simpan otomatis setiap hapus data
+    setState(() { productList.removeAt(index); });
+    _saveToLocal();
   }
 
   @override
@@ -397,7 +429,7 @@ class _CatalogPageState extends State<CatalogPage> {
           final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => const AddProductPage()));
           if (result != null && result is Product) {
             _addProduct(result);
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Produk ditambahkan & Disimpan!"), backgroundColor: Colors.green));
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Produk ditambahkan!"), backgroundColor: Colors.green));
           }
         },
         backgroundColor: Colors.blueAccent,
@@ -413,7 +445,7 @@ class _CatalogPageState extends State<CatalogPage> {
         itemBuilder: (context, index) {
           final product = productList[index];
           return Dismissible(
-            key: Key(product.name + index.toString()), // Key unik
+            key: Key(product.name + index.toString()),
             direction: DismissDirection.endToStart,
             confirmDismiss: (direction) async {
               return await showDialog(
@@ -459,7 +491,7 @@ class _CatalogPageState extends State<CatalogPage> {
 }
 
 // =======================================================
-// BAGIAN 6: FORM TAMBAH PRODUK
+// BAGIAN 6: FORM TAMBAH PRODUK (Sama)
 // =======================================================
 
 class AddProductPage extends StatefulWidget {
