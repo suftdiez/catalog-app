@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http; // Pastikan package http sudah ada di pubspec.yaml
+import 'dart:convert'; // Untuk encode/decode JSON
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart'; // IMPORT WAJIB BAB 4
 
 // =======================================================
-// BAGIAN 1: DATA MODEL & FORMATTER
+// BAGIAN 1: DATA MODEL (Update: Tambah toJson)
 // =======================================================
 
 class Product {
@@ -24,15 +25,30 @@ class Product {
     this.imageUrl = 'https://upload.wikimedia.org/wikipedia/commons/1/14/Product_sample_icon_picture.png',
   });
 
+  // Digunakan untuk mengubah data JSON dari Internet/Local menjadi Object Product
   factory Product.fromJson(Map<String, dynamic> json) {
     return Product(
-      name: json['title'] ?? 'Tanpa Nama',
-      price: "Rp ${(json['price'] * 15000).toInt()}",
-      category: "Elektronik",
-      condition: "Baru",
+      name: json['title'] ?? json['name'] ?? 'Tanpa Nama', // Support key 'title' (API) atau 'name' (Lokal)
+      price: json['price'].toString().contains("Rp")
+          ? json['price'] // Jika sudah format Rupiah (Lokal)
+          : "Rp ${(double.parse(json['price'].toString()) * 15000).toInt()}", // Jika dari API (Dolar)
+      category: json['category'] ?? 'Elektronik',
+      condition: json['condition'] ?? 'Baru',
       description: json['description'] ?? '-',
-      imageUrl: json['image'] ?? '',
+      imageUrl: json['image'] ?? json['imageUrl'] ?? '',
     );
+  }
+
+  // SYARAT BAB 4: Method untuk mengubah Object Product menjadi JSON (agar bisa disimpan text-nya)
+  Map<String, dynamic> toJson() {
+    return {
+      'name': name,
+      'price': price,
+      'category': category,
+      'condition': condition,
+      'description': description,
+      'imageUrl': imageUrl,
+    };
   }
 }
 
@@ -50,15 +66,21 @@ class CurrencyInputFormatter extends TextInputFormatter {
 }
 
 // =======================================================
-// BAGIAN 2: UTAMA APLIKASI
+// BAGIAN 2: UTAMA APLIKASI (Cek Login di Awal)
 // =======================================================
 
-void main() {
-  runApp(const MyGadgetApp());
+Future<void> main() async {
+  // SYARAT BAB 4: Cek status login sebelum aplikasi jalan
+  WidgetsFlutterBinding.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();
+  final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
+
+  runApp(MyGadgetApp(isLoggedIn: isLoggedIn));
 }
 
 class MyGadgetApp extends StatelessWidget {
-  const MyGadgetApp({super.key});
+  final bool isLoggedIn;
+  const MyGadgetApp({super.key, required this.isLoggedIn});
 
   @override
   Widget build(BuildContext context) {
@@ -78,40 +100,41 @@ class MyGadgetApp extends StatelessWidget {
           contentPadding: EdgeInsets.symmetric(horizontal: 15, vertical: 15),
         ),
       ),
-      // MENGARAH KE LOGIN PAGE DULU (Syarat Bab 3.1)
-      home: const LoginPage(),
+      // Jika sudah login, langsung ke LandingPage. Jika belum, ke LoginPage.
+      home: isLoggedIn ? const LandingPage() : const LoginPage(),
     );
   }
 }
 
 // =======================================================
-// BAGIAN 3: HALAMAN LOGIN (JAWABAN PRAKTIK BAB 3.1)
+// BAGIAN 3: HALAMAN LOGIN (Simpan Data Login)
 // =======================================================
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
-
   @override
   State<LoginPage> createState() => _LoginPageState();
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _formKey = GlobalKey<FormState>(); // Kunci Validasi Form
-
-  // 1. Membuat dua TextField (Email & Password)
+  final _formKey = GlobalKey<FormState>();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  // 3. Menangani event onPressed pada button login
-  void _handleLogin() {
+  Future<void> _handleLogin() async {
     if (_formKey.currentState!.validate()) {
-      // Jika validasi sukses, pindah ke Landing Page
+      // SYARAT BAB 4: Simpan status login & username ke Memory HP
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('isLoggedIn', true);
+      await prefs.setString('username', _emailController.text); // Simpan email sebagai username
+
+      if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const LandingPage()),
       );
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Login Berhasil!"), backgroundColor: Colors.green),
+        const SnackBar(content: Text("Login Berhasil & Data Disimpan!"), backgroundColor: Colors.green),
       );
     }
   }
@@ -131,59 +154,25 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 20),
                 const Text("Silakan Login", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 30),
-
-                // INPUT 1: EMAIL (Dengan Validasi @)
                 TextFormField(
                   controller: _emailController,
-                  decoration: const InputDecoration(
-                      labelText: "Email",
-                      prefixIcon: Icon(Icons.email),
-                      hintText: "contoh@email.com"
-                  ),
-                  // 2. Menambahkan validasi (email harus mengandung "@")
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Email wajib diisi';
-                    }
-                    if (!value.contains('@')) {
-                      return 'Email tidak valid (harus ada @)';
-                    }
-                    return null;
-                  },
+                  decoration: const InputDecoration(labelText: "Email", prefixIcon: Icon(Icons.email), hintText: "contoh@email.com"),
+                  validator: (value) => (value == null || !value.contains('@')) ? 'Email tidak valid (harus ada @)' : null,
                 ),
                 const SizedBox(height: 15),
-
-                // INPUT 2: PASSWORD
                 TextFormField(
                   controller: _passwordController,
                   obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: "Password",
-                    prefixIcon: Icon(Icons.lock),
-                  ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Password wajib diisi';
-                    }
-                    if (value.length < 6) {
-                      return 'Password minimal 6 karakter';
-                    }
-                    return null;
-                  },
+                  decoration: const InputDecoration(labelText: "Password", prefixIcon: Icon(Icons.lock)),
+                  validator: (value) => (value == null || value.length < 6) ? 'Password minimal 6 karakter' : null,
                 ),
                 const SizedBox(height: 30),
-
-                // BUTTON LOGIN (Event Handler)
                 SizedBox(
                   width: double.infinity,
                   height: 50,
                   child: ElevatedButton(
-                    onPressed: _handleLogin, // Memanggil fungsi login
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blueAccent,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    ),
+                    onPressed: _handleLogin,
+                    style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
                     child: const Text("MASUK", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   ),
                 ),
@@ -197,11 +186,41 @@ class _LoginPageState extends State<LoginPage> {
 }
 
 // =======================================================
-// BAGIAN 4: HALAMAN DEPAN (LANDING PAGE)
+// BAGIAN 4: HALAMAN DEPAN (Baca Data Username)
 // =======================================================
 
-class LandingPage extends StatelessWidget {
+class LandingPage extends StatefulWidget {
   const LandingPage({super.key});
+
+  @override
+  State<LandingPage> createState() => _LandingPageState();
+}
+
+class _LandingPageState extends State<LandingPage> {
+  String _username = "Pengguna"; // Default name
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUsername();
+  }
+
+  // SYARAT BAB 4: Ambil nama user yang tersimpan
+  Future<void> _loadUsername() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _username = prefs.getString('username') ?? "Pengguna";
+    });
+  }
+
+  // Fungsi Logout
+  Future<void> _logout() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear(); // Hapus semua data (login & list)
+    // Atau prefs.remove('isLoggedIn'); jika ingin hapus login saja
+    if (!mounted) return;
+    Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginPage()));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -209,7 +228,9 @@ class LandingPage extends StatelessWidget {
       appBar: AppBar(
         title: const Text("MyGadget Store"),
         centerTitle: true,
-        automaticallyImplyLeading: false,
+        actions: [
+          IconButton(onPressed: _logout, icon: const Icon(Icons.logout), tooltip: "Logout"),
+        ],
       ),
       body: Center(
         child: SingleChildScrollView(
@@ -223,7 +244,10 @@ class LandingPage extends StatelessWidget {
               const SizedBox(height: 10),
               const Text("Katalog Gadget Online Terlengkap", style: TextStyle(color: Colors.grey, fontSize: 16)),
               const SizedBox(height: 40),
-              const ProfileCard(name: "Nama Mahasiswa", role: "App Developer"),
+
+              // Tampilkan Username yang diambil dari Shared Preferences
+              ProfileCard(name: _username, role: "App Developer"),
+
               const SizedBox(height: 40),
               SizedBox(
                 width: double.infinity,
@@ -232,11 +256,7 @@ class LandingPage extends StatelessWidget {
                   onPressed: () {
                     Navigator.push(context, MaterialPageRoute(builder: (context) => const CatalogPage()));
                   },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blueAccent,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.blueAccent, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
                   child: const Text("Lihat Katalog", style: TextStyle(fontSize: 18)),
                 ),
               ),
@@ -267,12 +287,14 @@ class ProfileCard extends StatelessWidget {
         children: [
           const CircleAvatar(radius: 25, backgroundColor: Colors.blueAccent, child: Icon(Icons.person, color: Colors.white)),
           const SizedBox(width: 15),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              Text(role, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-            ],
+          Expanded( // Pakai Expanded agar teks panjang tidak error
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                Text(role, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+              ],
+            ),
           ),
         ],
       ),
@@ -281,7 +303,7 @@ class ProfileCard extends StatelessWidget {
 }
 
 // =======================================================
-// BAGIAN 5: KATALOG (JAWABAN BAB 2 & 3.2)
+// BAGIAN 5: KATALOG (Challenge: Simpan List Lokal)
 // =======================================================
 
 class CatalogPage extends StatefulWidget {
@@ -297,18 +319,43 @@ class _CatalogPageState extends State<CatalogPage> {
   @override
   void initState() {
     super.initState();
-    fetchProducts();
+    _loadData(); // Load data saat halaman dibuka
   }
 
-  Future<void> fetchProducts() async {
+  // LOGIKA UTAMA: Cek Lokal dulu, kalau kosong baru ambil API
+  Future<void> _loadData() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? localData = prefs.getString('products_data');
+
+    if (localData != null && localData.isNotEmpty) {
+      // 1. Jika ada data lokal, pakai itu (Offline Mode)
+      print("Mengambil data dari LOKAL");
+      List<dynamic> jsonList = jsonDecode(localData);
+      setState(() {
+        productList = jsonList.map((e) => Product.fromJson(e)).toList();
+        isLoading = false;
+      });
+    } else {
+      // 2. Jika tidak ada, ambil dari API
+      print("Mengambil data dari API");
+      await fetchProductsFromApi();
+    }
+  }
+
+  Future<void> fetchProductsFromApi() async {
     try {
       final response = await http.get(Uri.parse('https://fakestoreapi.com/products/category/electronics'));
       if (response.statusCode == 200) {
         List<dynamic> data = json.decode(response.body);
+        List<Product> fetchedProducts = data.map((json) => Product.fromJson(json)).toList();
+
         setState(() {
-          productList = data.map((json) => Product.fromJson(json)).toList();
+          productList = fetchedProducts;
           isLoading = false;
         });
+
+        // Simpan hasil API ke lokal agar besok tidak perlu download lagi
+        _saveToLocal();
       } else {
         throw Exception('Gagal load data');
       }
@@ -318,13 +365,27 @@ class _CatalogPageState extends State<CatalogPage> {
     }
   }
 
+  // Fungsi untuk menyimpan List ke Memory HP
+  Future<void> _saveToLocal() async {
+    final prefs = await SharedPreferences.getInstance();
+    // Ubah List<Product> menjadi JSON String
+    String jsonString = jsonEncode(productList.map((p) => p.toJson()).toList());
+    await prefs.setString('products_data', jsonString);
+    print("Data berhasil disimpan ke LOKAL");
+  }
+
   void _addProduct(Product newProduct) {
-    setState(() { productList.add(newProduct); });
+    setState(() {
+      productList.add(newProduct);
+    });
+    _saveToLocal(); // Simpan otomatis setiap tambah data
   }
 
   void _removeProduct(int index) {
-    setState(() { productList.removeAt(index); });
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Produk dihapus")));
+    setState(() {
+      productList.removeAt(index);
+    });
+    _saveToLocal(); // Simpan otomatis setiap hapus data
   }
 
   @override
@@ -336,7 +397,7 @@ class _CatalogPageState extends State<CatalogPage> {
           final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => const AddProductPage()));
           if (result != null && result is Product) {
             _addProduct(result);
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Produk ditambahkan!"), backgroundColor: Colors.green));
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Produk ditambahkan & Disimpan!"), backgroundColor: Colors.green));
           }
         },
         backgroundColor: Colors.blueAccent,
@@ -352,7 +413,7 @@ class _CatalogPageState extends State<CatalogPage> {
         itemBuilder: (context, index) {
           final product = productList[index];
           return Dismissible(
-            key: Key(product.name + index.toString()),
+            key: Key(product.name + index.toString()), // Key unik
             direction: DismissDirection.endToStart,
             confirmDismiss: (direction) async {
               return await showDialog(
@@ -398,10 +459,9 @@ class _CatalogPageState extends State<CatalogPage> {
 }
 
 // =======================================================
-// BAGIAN 6: FORM TAMBAH PRODUK (JAWABAN CHALLENGE BAB 3)
+// BAGIAN 6: FORM TAMBAH PRODUK
 // =======================================================
 
-// 4. Challenge: Membuat form tambah item baru
 class AddProductPage extends StatefulWidget {
   const AddProductPage({super.key});
   @override
