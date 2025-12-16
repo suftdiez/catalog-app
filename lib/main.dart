@@ -1,16 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
-// --- IMPORT PACKAGE BARU (BAB 4.2) ---
-import 'package:carousel_slider/carousel_slider.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:provider/provider.dart'; // Wajib Bab 5
+import 'package:shared_preferences/shared_preferences.dart'; // Wajib Bab 4
+import 'package:carousel_slider/carousel_slider.dart'; // Wajib Bab 4.2
+import 'package:url_launcher/url_launcher.dart'; // Wajib Bab 4.2
+import 'providers/product_provider.dart'; // File Provider yang baru dibuat
 
 // =======================================================
-// BAGIAN 1: DATA MODEL
+// BAGIAN 1: DATA MODEL & FORMATTER
 // =======================================================
-
 class Product {
   final String name;
   final String price;
@@ -43,12 +41,8 @@ class Product {
 
   Map<String, dynamic> toJson() {
     return {
-      'name': name,
-      'price': price,
-      'category': category,
-      'condition': condition,
-      'description': description,
-      'imageUrl': imageUrl,
+      'name': name, 'price': price, 'category': category,
+      'condition': condition, 'description': description, 'imageUrl': imageUrl,
     };
   }
 }
@@ -67,15 +61,21 @@ class CurrencyInputFormatter extends TextInputFormatter {
 }
 
 // =======================================================
-// BAGIAN 2: UTAMA APLIKASI
+// BAGIAN 2: UTAMA APLIKASI (SETUP PROVIDER)
 // =======================================================
-
-Future<void> main() async {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
   final isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
 
-  runApp(MyGadgetApp(isLoggedIn: isLoggedIn));
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ProductProvider()),
+      ],
+      child: MyGadgetApp(isLoggedIn: isLoggedIn),
+    ),
+  );
 }
 
 class MyGadgetApp extends StatelessWidget {
@@ -106,9 +106,8 @@ class MyGadgetApp extends StatelessWidget {
 }
 
 // =======================================================
-// BAGIAN 3: HALAMAN LOGIN
+// BAGIAN 3: HALAMAN LOGIN (FITUR LAMA: PERSISTENT)
 // =======================================================
-
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
   @override
@@ -117,8 +116,8 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _emailController = TextEditingController();
-  final TextEditingController _passwordController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
 
   Future<void> _handleLogin() async {
     if (_formKey.currentState!.validate()) {
@@ -157,7 +156,7 @@ class _LoginPageState extends State<LoginPage> {
                   controller: _passwordController,
                   obscureText: true,
                   decoration: const InputDecoration(labelText: "Password", prefixIcon: Icon(Icons.lock)),
-                  validator: (value) => (value == null || value.length < 6) ? 'Password minimal 6 karakter' : null,
+                  validator: (value) => (value == null || value.length < 6) ? 'Min 6 karakter' : null,
                 ),
                 const SizedBox(height: 30),
                 SizedBox(
@@ -179,9 +178,8 @@ class _LoginPageState extends State<LoginPage> {
 }
 
 // =======================================================
-// BAGIAN 4: HALAMAN DEPAN (Update: Carousel Slider)
+// BAGIAN 4: LANDING PAGE (FITUR LAMA: SLIDER & PROFILE)
 // =======================================================
-
 class LandingPage extends StatefulWidget {
   const LandingPage({super.key});
   @override
@@ -194,7 +192,6 @@ class _LandingPageState extends State<LandingPage> {
   // List gambar banner (URL placeholder)
   final List<String> imgList = [
     'https://img.freepik.com/free-vector/flat-horizontal-banner-template-black-friday-sales_23-2150867493.jpg',
-    'https://img.freepik.com/free-psd/black-friday-super-sale-social-media-banner-template_120329-2128.jpg',
     'https://img.freepik.com/free-vector/cyber-monday-sale-banner-template_23-2148747625.jpg',
   ];
 
@@ -225,24 +222,31 @@ class _LandingPageState extends State<LandingPage> {
         title: const Text("MyGadget Store"),
         centerTitle: true,
         actions: [
+          // FITUR BARU BAB 5: TOMBOL ABOUT
+          IconButton(
+              icon: const Icon(Icons.info_outline),
+              tooltip: "Tentang Aplikasi",
+              onPressed: () {
+                Navigator.push(context, MaterialPageRoute(builder: (context) => const AboutPage()));
+              }
+          ),
           IconButton(onPressed: _logout, icon: const Icon(Icons.logout), tooltip: "Logout"),
         ],
       ),
-      body: SingleChildScrollView( // Pakai SingleChildScrollView agar tidak overflow
+      body: SingleChildScrollView(
         child: Column(
           children: [
             const SizedBox(height: 20),
 
-            // --- IMPLEMENTASI PACKAGE 1: CAROUSEL SLIDER ---
+            // FITUR BAB 4.2: CAROUSEL SLIDER (DIPERTAHANKAN)
             CarouselSlider(
               options: CarouselOptions(
                 height: 180.0,
-                autoPlay: true, // Gambar gerak sendiri
+                autoPlay: true,
                 enlargeCenterPage: true,
                 aspectRatio: 16/9,
                 autoPlayCurve: Curves.fastOutSlowIn,
                 enableInfiniteScroll: true,
-                autoPlayAnimationDuration: const Duration(milliseconds: 800),
                 viewportFraction: 0.8,
               ),
               items: imgList.map((item) => Container(
@@ -253,7 +257,6 @@ class _LandingPageState extends State<LandingPage> {
                 ),
               )).toList(),
             ),
-            // -----------------------------------------------
 
             const SizedBox(height: 20),
             const Text("Selamat Datang", style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
@@ -263,6 +266,7 @@ class _LandingPageState extends State<LandingPage> {
             const Text("Temukan gadget impianmu di sini.", style: TextStyle(color: Colors.grey, fontSize: 16)),
 
             const SizedBox(height: 30),
+            // FITUR LAMA: PROFILE CARD
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20.0),
               child: ProfileCard(name: _username, role: "Member Gold"),
@@ -291,24 +295,18 @@ class _LandingPageState extends State<LandingPage> {
   }
 }
 
-// =======================================================
-// WIDGET PROFILE CARD (Update: URL Launcher)
-// =======================================================
-
+// WIDGET PROFILE CARD (DIPERTAHANKAN)
 class ProfileCard extends StatelessWidget {
   final String name;
   final String role;
   const ProfileCard({super.key, required this.name, required this.role});
 
-  // --- IMPLEMENTASI PACKAGE 2: URL LAUNCHER ---
   Future<void> _launchURL() async {
-    // Ganti URL ini dengan link apa saja (Web / WA)
     final Uri url = Uri.parse('https://flutter.dev');
     if (!await launchUrl(url)) {
       throw Exception('Could not launch $url');
     }
   }
-  // --------------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -320,7 +318,7 @@ class ProfileCard extends StatelessWidget {
         border: Border.all(color: Colors.blue.withOpacity(0.2)),
         boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), spreadRadius: 2, blurRadius: 10, offset: const Offset(0, 5))],
       ),
-      child: Column( // Ubah ke Column agar tombol ada di bawah
+      child: Column(
         children: [
           Row(
             children: [
@@ -342,7 +340,7 @@ class ProfileCard extends StatelessWidget {
             width: double.infinity,
             height: 35,
             child: OutlinedButton.icon(
-              onPressed: _launchURL, // Panggil fungsi buka link
+              onPressed: _launchURL,
               icon: const Icon(Icons.support_agent, size: 18),
               label: const Text("Hubungi CS (Web)"),
               style: OutlinedButton.styleFrom(
@@ -358,9 +356,8 @@ class ProfileCard extends StatelessWidget {
 }
 
 // =======================================================
-// BAGIAN 5: KATALOG (Sama seperti sebelumnya)
+// BAGIAN 5: KATALOG (FITUR BARU: SEARCH & PROVIDER)
 // =======================================================
-
 class CatalogPage extends StatefulWidget {
   const CatalogPage({super.key});
   @override
@@ -368,132 +365,103 @@ class CatalogPage extends StatefulWidget {
 }
 
 class _CatalogPageState extends State<CatalogPage> {
-  List<Product> productList = [];
-  bool isLoading = true;
-
   @override
   void initState() {
     super.initState();
-    _loadData();
-  }
-
-  Future<void> _loadData() async {
-    final prefs = await SharedPreferences.getInstance();
-    final String? localData = prefs.getString('products_data');
-
-    if (localData != null && localData.isNotEmpty) {
-      List<dynamic> jsonList = jsonDecode(localData);
-      setState(() {
-        productList = jsonList.map((e) => Product.fromJson(e)).toList();
-        isLoading = false;
-      });
-    } else {
-      await fetchProductsFromApi();
-    }
-  }
-
-  Future<void> fetchProductsFromApi() async {
-    try {
-      final response = await http.get(Uri.parse('https://fakestoreapi.com/products/category/electronics'));
-      if (response.statusCode == 200) {
-        List<dynamic> data = json.decode(response.body);
-        List<Product> fetchedProducts = data.map((json) => Product.fromJson(json)).toList();
-        setState(() { productList = fetchedProducts; isLoading = false; });
-        _saveToLocal();
-      } else { throw Exception('Gagal load data'); }
-    } catch (e) { setState(() => isLoading = false); }
-  }
-
-  Future<void> _saveToLocal() async {
-    final prefs = await SharedPreferences.getInstance();
-    String jsonString = jsonEncode(productList.map((p) => p.toJson()).toList());
-    await prefs.setString('products_data', jsonString);
-  }
-
-  void _addProduct(Product newProduct) {
-    setState(() { productList.add(newProduct); });
-    _saveToLocal();
-  }
-
-  void _removeProduct(int index) {
-    setState(() { productList.removeAt(index); });
-    _saveToLocal();
+    // Memanggil fungsi loadData dari Provider saat halaman dibuka
+    Provider.of<ProductProvider>(context, listen: false).loadData();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Katalog Produk")),
+      body: Column(
+        children: [
+          // --- FITUR SEARCH (PENCARIAN) ---
+          Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: TextField(
+              decoration: const InputDecoration(
+                labelText: "Cari Gadget...",
+                hintText: "Contoh: Monitor",
+                prefixIcon: Icon(Icons.search),
+                border: OutlineInputBorder(),
+                filled: true,
+                fillColor: Colors.white,
+              ),
+              onChanged: (value) {
+                // LOGIKA SEARCH DARI PROVIDER
+                Provider.of<ProductProvider>(context, listen: false).search(value);
+              },
+            ),
+          ),
+
+          // --- LIST PRODUK (DARI PROVIDER) ---
+          Expanded(
+            child: Consumer<ProductProvider>(
+              builder: (context, provider, child) {
+                if (provider.isLoading) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (provider.products.isEmpty) {
+                  return const Center(child: Text("Produk tidak ditemukan / Kosong"));
+                }
+                return ListView.builder(
+                  padding: const EdgeInsets.only(bottom: 80),
+                  itemCount: provider.products.length,
+                  itemBuilder: (context, index) {
+                    final product = provider.products[index];
+                    return Dismissible(
+                      key: Key(product.name + index.toString()),
+                      direction: DismissDirection.endToStart,
+                      background: Container(color: Colors.red, alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), child: const Icon(Icons.delete, color: Colors.white)),
+                      confirmDismiss: (direction) async {
+                        return await showDialog(context: context, builder: (c) => AlertDialog(title: const Text("Hapus?"), actions: [TextButton(onPressed: ()=>Navigator.pop(c,false), child:const Text("Batal")), TextButton(onPressed: ()=>Navigator.pop(c,true), child:const Text("Hapus",style: TextStyle(color:Colors.red)))]));
+                      },
+                      onDismissed: (_) => provider.removeProduct(product),
+
+                      // KARTU PRODUK
+                      child: Card(
+                        margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+                        elevation: 3,
+                        child: ListTile(
+                          leading: Container(
+                            width: 60, height: 60,
+                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
+                            child: Image.network(product.imageUrl, fit: BoxFit.contain, errorBuilder: (c,e,s) => const Icon(Icons.error)),
+                          ),
+                          title: Text(product.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          subtitle: Text("${product.category} • ${product.price}"),
+                          isThreeLine: true,
+                          onTap: () {
+                            // --- FITUR BARU: NAVIGASI KE DETAIL ---
+                            Navigator.push(context, MaterialPageRoute(builder: (context) => DetailPage(product: product)));
+                          },
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () async {
-          final result = await Navigator.push(context, MaterialPageRoute(builder: (context) => const AddProductPage()));
-          if (result != null && result is Product) {
-            _addProduct(result);
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Produk ditambahkan!"), backgroundColor: Colors.green));
-          }
+        onPressed: () {
+          Navigator.push(context, MaterialPageRoute(builder: (context) => const AddProductPage()));
         },
         backgroundColor: Colors.blueAccent,
         child: const Icon(Icons.add, color: Colors.white),
-      ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : productList.isEmpty
-          ? const Center(child: Text("Data Kosong"))
-          : ListView.builder(
-        padding: const EdgeInsets.only(bottom: 80),
-        itemCount: productList.length,
-        itemBuilder: (context, index) {
-          final product = productList[index];
-          return Dismissible(
-            key: Key(product.name + index.toString()),
-            direction: DismissDirection.endToStart,
-            confirmDismiss: (direction) async {
-              return await showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text("Hapus Produk?"),
-                  content: Text("Yakin ingin menghapus ${product.name}?"),
-                  actions: [
-                    TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Batal")),
-                    TextButton(onPressed: () => Navigator.pop(context, true), child: const Text("Hapus", style: TextStyle(color: Colors.red))),
-                  ],
-                ),
-              );
-            },
-            background: Container(
-              alignment: Alignment.centerRight,
-              padding: const EdgeInsets.only(right: 20),
-              color: Colors.red,
-              child: const Icon(Icons.delete, color: Colors.white),
-            ),
-            onDismissed: (_) => _removeProduct(index),
-            child: Card(
-              margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-              elevation: 3,
-              child: ListTile(
-                leading: Container(
-                  width: 60, height: 60,
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
-                  child: product.imageUrl.isNotEmpty
-                      ? Image.network(product.imageUrl, fit: BoxFit.contain, errorBuilder: (c,e,s) => const Icon(Icons.error))
-                      : const Icon(Icons.devices),
-                ),
-                title: Text(product.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text("${product.category} • ${product.condition}\n${product.price}"),
-                isThreeLine: true,
-              ),
-            ),
-          );
-        },
       ),
     );
   }
 }
 
 // =======================================================
-// BAGIAN 6: FORM TAMBAH PRODUK (Sama)
+// BAGIAN 6: FORM TAMBAH PRODUK (DIPERTAHANKAN)
 // =======================================================
-
 class AddProductPage extends StatefulWidget {
   const AddProductPage({super.key});
   @override
@@ -505,7 +473,7 @@ class _AddProductPageState extends State<AddProductPage> {
   final _nameController = TextEditingController();
   final _priceController = TextEditingController();
   final _descController = TextEditingController();
-  String? _selectedCategory;
+  String _selectedCategory = "Smartphone";
   String _selectedCondition = "Baru";
   final List<String> _categories = ["Smartphone", "Laptop", "Tablet", "Aksesoris", "Lainnya"];
 
@@ -528,8 +496,7 @@ class _AddProductPageState extends State<AddProductPage> {
               decoration: const InputDecoration(labelText: "Kategori", prefixIcon: Icon(Icons.category)),
               value: _selectedCategory,
               items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-              onChanged: (v) => setState(() => _selectedCategory = v),
-              validator: (v) => v == null ? 'Pilih kategori' : null,
+              onChanged: (v) => setState(() => _selectedCategory = v.toString()),
             ),
             const SizedBox(height: 15),
             Row(children: [
@@ -560,16 +527,103 @@ class _AddProductPageState extends State<AddProductPage> {
                   final newProduct = Product(
                     name: _nameController.text,
                     price: "Rp ${_priceController.text}",
-                    category: _selectedCategory!,
+                    category: _selectedCategory,
                     condition: _selectedCondition,
                     description: _descController.text,
                   );
-                  Navigator.pop(context, newProduct);
+                  // PANGGIL PROVIDER UNTUK SIMPAN DATA
+                  Provider.of<ProductProvider>(context, listen: false).addProduct(newProduct);
+                  Navigator.pop(context);
                 }
               },
               child: const Text("Simpan Produk"),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// =======================================================
+// BAGIAN 7: DETAIL PAGE (FITUR BARU BAB 5)
+// =======================================================
+class DetailPage extends StatelessWidget {
+  final Product product;
+  const DetailPage({super.key, required this.product});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text(product.name)),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                height: 250,
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
+                child: Image.network(product.imageUrl, fit: BoxFit.contain, errorBuilder: (c,e,s) => const Icon(Icons.broken_image, size: 100)),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(product.name, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            Text(product.price, style: const TextStyle(fontSize: 22, color: Colors.blueAccent, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 15),
+            Row(
+              children: [
+                Chip(label: Text(product.category), backgroundColor: Colors.blue.shade100),
+                const SizedBox(width: 10),
+                Chip(label: Text(product.condition), backgroundColor: Colors.green.shade100),
+              ],
+            ),
+            const Divider(height: 30),
+            const Text("Deskripsi Produk:", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 10),
+            Text(product.description, style: const TextStyle(fontSize: 16, height: 1.5)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// =======================================================
+// BAGIAN 8: ABOUT PAGE (FITUR BARU BAB 5)
+// =======================================================
+class AboutPage extends StatelessWidget {
+  const AboutPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("Tentang Aplikasi")),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: const [
+              CircleAvatar(radius: 60, backgroundColor: Colors.blueAccent, child: Icon(Icons.code, size: 60, color: Colors.white)),
+              SizedBox(height: 20),
+              Text("MyGadget Store v1.0", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+              SizedBox(height: 10),
+              Text("Aplikasi Katalog Toko Elektronik", style: TextStyle(color: Colors.grey)),
+              SizedBox(height: 30),
+              Divider(),
+              SizedBox(height: 20),
+              Text("Developed by:", style: TextStyle(fontWeight: FontWeight.bold)),
+              Text("Nama Mahasiswa", style: TextStyle(fontSize: 18)),
+              SizedBox(height: 30),
+              Text("Teknologi:", style: TextStyle(fontWeight: FontWeight.bold)),
+              Text("Flutter • Provider • REST API • SharedPrefs"),
+            ],
+          ),
         ),
       ),
     );
