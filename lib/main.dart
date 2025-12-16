@@ -618,7 +618,7 @@ class AboutPage extends StatelessWidget {
               Divider(),
               SizedBox(height: 20),
               Text("Developed by:", style: TextStyle(fontWeight: FontWeight.bold)),
-              Text("Nama Mahasiswa", style: TextStyle(fontSize: 18)),
+              Text("Fajri Maulana Yusuf", style: TextStyle(fontSize: 18)),
               SizedBox(height: 30),
               Text("Teknologi:", style: TextStyle(fontWeight: FontWeight.bold)),
               Text("Flutter • Provider • REST API • SharedPrefs"),
