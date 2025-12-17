@@ -6,6 +6,8 @@ import 'package:carousel_slider/carousel_slider.dart'; // Wajib Bab 4.2
 import 'package:url_launcher/url_launcher.dart'; // Wajib Bab 4.2
 import 'providers/product_provider.dart'; // File Provider yang baru dibuat
 import 'providers/cart_provider.dart'; // Cart Provider untuk keranjang belanja
+import 'providers/wishlist_provider.dart'; // Wishlist Provider
+import 'providers/theme_provider.dart'; // Theme Provider untuk Dark Mode
 
 // =======================================================
 // BAGIAN 1: DATA MODEL & FORMATTER
@@ -18,6 +20,8 @@ class Product {
   final String condition;
   final String description;
   final String imageUrl;
+  final double rating;
+  final int ratingCount;
 
   Product({
     int? id,
@@ -27,6 +31,8 @@ class Product {
     required this.condition,
     required this.description,
     this.imageUrl = 'https://upload.wikimedia.org/wikipedia/commons/1/14/Product_sample_icon_picture.png',
+    this.rating = 0.0,
+    this.ratingCount = 0,
   }) : id = id ?? DateTime.now().millisecondsSinceEpoch;
 
   factory Product.fromJson(Map<String, dynamic> json) {
@@ -40,6 +46,12 @@ class Product {
       condition: json['condition'] ?? 'Baru',
       description: json['description'] ?? '-',
       imageUrl: json['image'] ?? json['imageUrl'] ?? '',
+      rating: (json['rating'] is Map) 
+          ? (json['rating']['rate'] ?? 0.0).toDouble() 
+          : (json['rating'] ?? 0.0).toDouble(),
+      ratingCount: (json['rating'] is Map) 
+          ? (json['rating']['count'] ?? 0) 
+          : (json['ratingCount'] ?? 0),
     );
   }
 
@@ -48,7 +60,23 @@ class Product {
       'id': id,
       'name': name, 'price': price, 'category': category,
       'condition': condition, 'description': description, 'imageUrl': imageUrl,
+      'rating': rating, 'ratingCount': ratingCount,
     };
+  }
+
+  // Create copy with updated rating
+  Product copyWithRating(double newRating, int newCount) {
+    return Product(
+      id: id,
+      name: name,
+      price: price,
+      category: category,
+      condition: condition,
+      description: description,
+      imageUrl: imageUrl,
+      rating: newRating,
+      ratingCount: newCount,
+    );
   }
 }
 
@@ -78,6 +106,8 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => ProductProvider()),
         ChangeNotifierProvider(create: (_) => CartProvider()),
+        ChangeNotifierProvider(create: (_) => WishlistProvider()),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
       child: MyGadgetApp(isLoggedIn: isLoggedIn),
     ),
@@ -90,23 +120,17 @@ class MyGadgetApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'MyGadget Store',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        scaffoldBackgroundColor: Colors.grey.shade50,
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Colors.blueAccent,
-          foregroundColor: Colors.white,
-          elevation: 2,
-        ),
-        inputDecorationTheme: const InputDecorationTheme(
-          border: OutlineInputBorder(),
-          contentPadding: EdgeInsets.symmetric(horizontal: 15, vertical: 15),
-        ),
-      ),
-      home: isLoggedIn ? const LandingPage() : const LoginPage(),
+    return Consumer<ThemeProvider>(
+      builder: (context, themeProvider, child) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'MyGadget Store',
+          theme: themeProvider.lightTheme,
+          darkTheme: themeProvider.darkTheme,
+          themeMode: themeProvider.themeMode,
+          home: isLoggedIn ? const LandingPage() : const LoginPage(),
+        );
+      },
     );
   }
 }
@@ -195,10 +219,11 @@ class LandingPage extends StatefulWidget {
 class _LandingPageState extends State<LandingPage> {
   String _username = "Pengguna";
 
-  // List gambar banner (URL placeholder)
+  // List gambar banner (Promo Gadget)
   final List<String> imgList = [
-    'https://img.freepik.com/free-vector/flat-horizontal-banner-template-black-friday-sales_23-2150867493.jpg',
-    'https://img.freepik.com/free-vector/cyber-monday-sale-banner-template_23-2148747625.jpg',
+    'https://images.unsplash.com/photo-1531297484001-80022131f5a1?w=800&q=80', // Tech laptop setup
+    'https://images.unsplash.com/photo-1593642632559-0c6d3fc62b89?w=800&q=80', // Smartphone
+    'https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=800&q=80', // MacBook
   ];
 
   @override
@@ -343,8 +368,8 @@ class ProfileCard extends StatelessWidget {
   const ProfileCard({super.key, required this.name, required this.role});
 
   Future<void> _launchURL() async {
-    final Uri url = Uri.parse('https://flutter.dev');
-    if (!await launchUrl(url)) {
+    final Uri url = Uri.parse('https://wa.me/6282223397728');
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
       throw Exception('Could not launch $url');
     }
   }
@@ -354,10 +379,10 @@ class ProfileCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.blue.withOpacity(0.2)),
-        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.1), spreadRadius: 2, blurRadius: 10, offset: const Offset(0, 5))],
+        border: Border.all(color: Colors.blue.withAlpha(50)),
+        boxShadow: [BoxShadow(color: Colors.grey.withAlpha(25), spreadRadius: 2, blurRadius: 10, offset: const Offset(0, 5))],
       ),
       child: Column(
         children: [
@@ -382,11 +407,11 @@ class ProfileCard extends StatelessWidget {
             height: 35,
             child: OutlinedButton.icon(
               onPressed: _launchURL,
-              icon: const Icon(Icons.support_agent, size: 18),
-              label: const Text("Hubungi CS (Web)"),
+              icon: const Icon(Icons.chat, size: 18),
+              label: const Text("Hubungi CS (WA)"),
               style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.blueAccent,
-                side: const BorderSide(color: Colors.blueAccent),
+                foregroundColor: Colors.green,
+                side: const BorderSide(color: Colors.green),
               ),
             ),
           )
@@ -397,7 +422,7 @@ class ProfileCard extends StatelessWidget {
 }
 
 // =======================================================
-// BAGIAN 5: KATALOG (FITUR BARU: SEARCH & PROVIDER)
+// BAGIAN 5: KATALOG (FITUR BARU: SEARCH, FILTER & SORT)
 // =======================================================
 class CatalogPage extends StatefulWidget {
   const CatalogPage({super.key});
@@ -409,36 +434,125 @@ class _CatalogPageState extends State<CatalogPage> {
   @override
   void initState() {
     super.initState();
-    // Memanggil fungsi loadData dari Provider saat halaman dibuka
     Provider.of<ProductProvider>(context, listen: false).loadData();
+  }
+
+  void _showSortOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) {
+        return Consumer<ProductProvider>(
+          builder: (context, provider, child) {
+            return Container(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text("Urutkan", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 15),
+                  ListTile(
+                    leading: const Icon(Icons.sort),
+                    title: const Text("Default"),
+                    trailing: provider.currentSort == 'default' ? const Icon(Icons.check, color: Colors.blue) : null,
+                    onTap: () { provider.sortProducts('default'); Navigator.pop(ctx); },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.arrow_upward),
+                    title: const Text("Harga Terendah"),
+                    trailing: provider.currentSort == 'price_asc' ? const Icon(Icons.check, color: Colors.blue) : null,
+                    onTap: () { provider.sortProducts('price_asc'); Navigator.pop(ctx); },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.arrow_downward),
+                    title: const Text("Harga Tertinggi"),
+                    trailing: provider.currentSort == 'price_desc' ? const Icon(Icons.check, color: Colors.blue) : null,
+                    onTap: () { provider.sortProducts('price_desc'); Navigator.pop(ctx); },
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.sort_by_alpha),
+                    title: const Text("Nama A-Z"),
+                    trailing: provider.currentSort == 'name_asc' ? const Icon(Icons.check, color: Colors.blue) : null,
+                    onTap: () { provider.sortProducts('name_asc'); Navigator.pop(ctx); },
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Katalog Produk")),
+      appBar: AppBar(
+        title: const Text("Katalog Produk"),
+        actions: [
+          // Wishlist Button
+          IconButton(
+            icon: const Icon(Icons.favorite),
+            tooltip: "Wishlist",
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const WishlistPage())),
+          ),
+          // Sort Button
+          IconButton(
+            icon: const Icon(Icons.sort),
+            tooltip: "Urutkan",
+            onPressed: () => _showSortOptions(context),
+          ),
+        ],
+      ),
       body: Column(
         children: [
-          // --- FITUR SEARCH (PENCARIAN) ---
+          // --- SEARCH BAR ---
           Padding(
             padding: const EdgeInsets.all(12.0),
             child: TextField(
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: "Cari Gadget...",
                 hintText: "Contoh: Monitor",
-                prefixIcon: Icon(Icons.search),
-                border: OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.search),
+                border: const OutlineInputBorder(),
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: Theme.of(context).cardColor,
               ),
               onChanged: (value) {
-                // LOGIKA SEARCH DARI PROVIDER
                 Provider.of<ProductProvider>(context, listen: false).search(value);
               },
             ),
           ),
 
-          // --- LIST PRODUK (DARI PROVIDER) ---
+          // --- FILTER CHIPS ---
+          Consumer<ProductProvider>(
+            builder: (context, provider, child) {
+              return SizedBox(
+                height: 50,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  itemCount: provider.categories.length,
+                  itemBuilder: (context, index) {
+                    final category = provider.categories[index];
+                    final isSelected = provider.currentCategory == category;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: FilterChip(
+                        label: Text(category),
+                        selected: isSelected,
+                        onSelected: (_) => provider.filterByCategory(category),
+                        selectedColor: Colors.blueAccent.shade100,
+                        checkmarkColor: Colors.blue,
+                      ),
+                    );
+                  },
+                ),
+              );
+            },
+          ),
+
+          // --- LIST PRODUK ---
           Expanded(
             child: Consumer<ProductProvider>(
               builder: (context, provider, child) {
@@ -446,7 +560,7 @@ class _CatalogPageState extends State<CatalogPage> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (provider.products.isEmpty) {
-                  return const Center(child: Text("Produk tidak ditemukan / Kosong"));
+                  return const Center(child: Text("Produk tidak ditemukan"));
                 }
                 return ListView.builder(
                   padding: const EdgeInsets.only(bottom: 80),
@@ -454,15 +568,13 @@ class _CatalogPageState extends State<CatalogPage> {
                   itemBuilder: (context, index) {
                     final product = provider.products[index];
                     return Dismissible(
-                      key: Key(product.name + index.toString()),
+                      key: Key(product.id.toString()),
                       direction: DismissDirection.endToStart,
                       background: Container(color: Colors.red, alignment: Alignment.centerRight, padding: const EdgeInsets.only(right: 20), child: const Icon(Icons.delete, color: Colors.white)),
                       confirmDismiss: (direction) async {
                         return await showDialog(context: context, builder: (c) => AlertDialog(title: const Text("Hapus?"), actions: [TextButton(onPressed: ()=>Navigator.pop(c,false), child:const Text("Batal")), TextButton(onPressed: ()=>Navigator.pop(c,true), child:const Text("Hapus",style: TextStyle(color:Colors.red)))]));
                       },
                       onDismissed: (_) => provider.removeProduct(product),
-
-                      // KARTU PRODUK
                       child: Card(
                         margin: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
                         elevation: 3,
@@ -474,9 +586,18 @@ class _CatalogPageState extends State<CatalogPage> {
                           ),
                           title: Text(product.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold)),
                           subtitle: Text("${product.category} • ${product.price}"),
-                          isThreeLine: true,
+                          trailing: Consumer<WishlistProvider>(
+                            builder: (context, wishlist, child) {
+                              return IconButton(
+                                icon: Icon(
+                                  wishlist.isInWishlist(product.id) ? Icons.favorite : Icons.favorite_border,
+                                  color: wishlist.isInWishlist(product.id) ? Colors.red : Colors.grey,
+                                ),
+                                onPressed: () => wishlist.toggleWishlist(product),
+                              );
+                            },
+                          ),
                           onTap: () {
-                            // --- FITUR BARU: NAVIGASI KE DETAIL ---
                             Navigator.push(context, MaterialPageRoute(builder: (context) => DetailPage(product: product)));
                           },
                         ),
@@ -711,23 +832,124 @@ class _EditProductPageState extends State<EditProductPage> {
 // =======================================================
 // BAGIAN 7: DETAIL PAGE (FITUR BARU BAB 5)
 // =======================================================
-class DetailPage extends StatelessWidget {
+class DetailPage extends StatefulWidget {
   final Product product;
   const DetailPage({super.key, required this.product});
+
+  @override
+  State<DetailPage> createState() => _DetailPageState();
+}
+
+class _DetailPageState extends State<DetailPage> {
+  late Product _product;
+  int _userRating = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _product = widget.product;
+  }
+
+  void _showRatingDialog() {
+    int tempRating = _userRating;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: const Text("Beri Rating"),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text("Bagaimana penilaian Anda?"),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(5, (index) {
+                    return IconButton(
+                      icon: Icon(
+                        index < tempRating ? Icons.star : Icons.star_border,
+                        color: Colors.amber,
+                        size: 36,
+                      ),
+                      onPressed: () {
+                        setDialogState(() => tempRating = index + 1);
+                      },
+                    );
+                  }),
+                ),
+                Text("$tempRating / 5", style: const TextStyle(fontSize: 16)),
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Batal")),
+              ElevatedButton(
+                onPressed: tempRating > 0 ? () {
+                  // Calculate new rating
+                  double newRating = ((_product.rating * _product.ratingCount) + tempRating) / (_product.ratingCount + 1);
+                  int newCount = _product.ratingCount + 1;
+                  
+                  // Update product
+                  Product updatedProduct = _product.copyWithRating(newRating, newCount);
+                  Provider.of<ProductProvider>(context, listen: false).updateProduct(_product.id, updatedProduct);
+                  
+                  setState(() {
+                    _product = updatedProduct;
+                    _userRating = tempRating;
+                  });
+                  
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text("Terima kasih! Rating $tempRating bintang tersimpan."), backgroundColor: Colors.green),
+                  );
+                } : null,
+                child: const Text("Kirim"),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildStarRating(double rating) {
+    return Row(
+      children: List.generate(5, (index) {
+        if (index < rating.floor()) {
+          return const Icon(Icons.star, color: Colors.amber, size: 20);
+        } else if (index < rating) {
+          return const Icon(Icons.star_half, color: Colors.amber, size: 20);
+        } else {
+          return const Icon(Icons.star_border, color: Colors.amber, size: 20);
+        }
+      }),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(product.name),
+        title: Text(_product.name),
         actions: [
+          Consumer<WishlistProvider>(
+            builder: (context, wishlist, child) {
+              return IconButton(
+                icon: Icon(
+                  wishlist.isInWishlist(_product.id) ? Icons.favorite : Icons.favorite_border,
+                  color: wishlist.isInWishlist(_product.id) ? Colors.red : Colors.white,
+                ),
+                onPressed: () => wishlist.toggleWishlist(_product),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.edit),
             tooltip: "Edit Produk",
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) => EditProductPage(product: product)),
+                MaterialPageRoute(builder: (context) => EditProductPage(product: _product)),
               );
             },
           ),
@@ -744,36 +966,67 @@ class DetailPage extends StatelessWidget {
                 width: double.infinity,
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
-                child: Image.network(product.imageUrl, fit: BoxFit.contain, errorBuilder: (c,e,s) => const Icon(Icons.broken_image, size: 100)),
+                child: Image.network(_product.imageUrl, fit: BoxFit.contain, errorBuilder: (c,e,s) => const Icon(Icons.broken_image, size: 100)),
               ),
             ),
             const SizedBox(height: 20),
-            Text(product.name, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            Text(_product.name, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
-            Text(product.price, style: const TextStyle(fontSize: 22, color: Colors.blueAccent, fontWeight: FontWeight.bold)),
+            
+            // Rating Display
+            Row(
+              children: [
+                _buildStarRating(_product.rating),
+                const SizedBox(width: 10),
+                Text(
+                  "${_product.rating.toStringAsFixed(1)} (${_product.ratingCount} ulasan)",
+                  style: const TextStyle(color: Colors.grey),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            
+            Text(_product.price, style: const TextStyle(fontSize: 22, color: Colors.blueAccent, fontWeight: FontWeight.bold)),
             const SizedBox(height: 15),
             Row(
               children: [
-                Chip(label: Text(product.category), backgroundColor: Colors.blue.shade100),
+                Chip(label: Text(_product.category), backgroundColor: Colors.blue.shade100),
                 const SizedBox(width: 10),
-                Chip(label: Text(product.condition), backgroundColor: Colors.green.shade100),
+                Chip(label: Text(_product.condition), backgroundColor: Colors.green.shade100),
               ],
             ),
             const Divider(height: 30),
             const Text("Deskripsi Produk:", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
-            Text(product.description, style: const TextStyle(fontSize: 16, height: 1.5)),
-            const SizedBox(height: 30),
+            Text(_product.description, style: const TextStyle(fontSize: 16, height: 1.5)),
+            const SizedBox(height: 20),
+            
+            // Rating Button
+            SizedBox(
+              width: double.infinity,
+              height: 45,
+              child: OutlinedButton.icon(
+                onPressed: _showRatingDialog,
+                icon: Icon(_userRating > 0 ? Icons.star : Icons.star_border, color: Colors.amber),
+                label: Text(_userRating > 0 ? "Rating Anda: $_userRating ⭐" : "Beri Rating"),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.amber.shade700,
+                  side: BorderSide(color: Colors.amber.shade700),
+                ),
+              ),
+            ),
+            const SizedBox(height: 15),
+            
             // Tombol Tambah ke Keranjang
             SizedBox(
               width: double.infinity,
               height: 50,
               child: ElevatedButton.icon(
                 onPressed: () {
-                  Provider.of<CartProvider>(context, listen: false).addToCart(product);
+                  Provider.of<CartProvider>(context, listen: false).addToCart(_product);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text("${product.name} ditambahkan ke keranjang!"),
+                      content: Text("${_product.name} ditambahkan ke keranjang!"),
                       backgroundColor: Colors.green,
                       duration: const Duration(seconds: 2),
                     ),
@@ -805,25 +1058,70 @@ class AboutPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Tentang Aplikasi")),
-      body: Center(
+      body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(20.0),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: const [
-              CircleAvatar(radius: 60, backgroundColor: Colors.blueAccent, child: Icon(Icons.code, size: 60, color: Colors.white)),
-              SizedBox(height: 20),
-              Text("MyGadget Store v1.0", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-              SizedBox(height: 10),
-              Text("Aplikasi Katalog Toko Elektronik", style: TextStyle(color: Colors.grey)),
-              SizedBox(height: 30),
-              Divider(),
-              SizedBox(height: 20),
-              Text("Developed by:", style: TextStyle(fontWeight: FontWeight.bold)),
-              Text("Fajri Maulana Yusuf", style: TextStyle(fontSize: 18)),
-              SizedBox(height: 30),
-              Text("Teknologi:", style: TextStyle(fontWeight: FontWeight.bold)),
-              Text("Flutter • Provider • REST API • SharedPrefs"),
+            children: [
+              const SizedBox(height: 20),
+              const CircleAvatar(radius: 60, backgroundColor: Colors.blueAccent, child: Icon(Icons.code, size: 60, color: Colors.white)),
+              const SizedBox(height: 20),
+              const Text("MyGadget Store v1.1", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 10),
+              const Text("Aplikasi Katalog Toko Elektronik", style: TextStyle(color: Colors.grey)),
+              const SizedBox(height: 30),
+              const Divider(),
+              
+              // --- DARK MODE TOGGLE ---
+              Consumer<ThemeProvider>(
+                builder: (context, themeProvider, child) {
+                  return Card(
+                    margin: const EdgeInsets.symmetric(vertical: 10),
+                    child: ListTile(
+                      leading: Icon(
+                        themeProvider.isDarkMode ? Icons.dark_mode : Icons.light_mode,
+                        color: themeProvider.isDarkMode ? Colors.amber : Colors.blueAccent,
+                      ),
+                      title: const Text("Mode Gelap", style: TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Text(themeProvider.isDarkMode ? "Aktif" : "Nonaktif"),
+                      trailing: Switch(
+                        value: themeProvider.isDarkMode,
+                        onChanged: (_) => themeProvider.toggleTheme(),
+                        activeColor: Colors.blueAccent,
+                      ),
+                    ),
+                  );
+                },
+              ),
+              
+              const Divider(),
+              const SizedBox(height: 20),
+              const Text("Developed by:", style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text("Fajri Maulana Yusuf", style: TextStyle(fontSize: 18)),
+              const SizedBox(height: 20),
+              const Text("Teknologi:", style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text("Flutter • Provider • REST API • SharedPrefs"),
+              const SizedBox(height: 30),
+              
+              // Features list
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(15),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text("Fitur Utama:", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      SizedBox(height: 10),
+                      Text("✓ Katalog Produk dengan Filter & Sort"),
+                      Text("✓ Keranjang Belanja"),
+                      Text("✓ Wishlist / Favorit"),
+                      Text("✓ Edit & Hapus Produk"),
+                      Text("✓ Mode Gelap"),
+                      Text("✓ Penyimpanan Lokal"),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -833,7 +1131,103 @@ class AboutPage extends StatelessWidget {
 }
 
 // =======================================================
-// BAGIAN 9: CART PAGE (KERANJANG BELANJA)
+// BAGIAN 9: WISHLIST PAGE (FITUR BARU)
+// =======================================================
+class WishlistPage extends StatelessWidget {
+  const WishlistPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Wishlist"),
+        actions: [
+          Consumer<WishlistProvider>(
+            builder: (context, wishlist, child) {
+              if (wishlist.wishlist.isEmpty) return const SizedBox();
+              return IconButton(
+                icon: const Icon(Icons.delete_sweep),
+                tooltip: "Hapus Semua",
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (c) => AlertDialog(
+                      title: const Text("Hapus Semua Wishlist?"),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(c), child: const Text("Batal")),
+                        TextButton(
+                          onPressed: () { wishlist.clearWishlist(); Navigator.pop(c); },
+                          child: const Text("Hapus", style: TextStyle(color: Colors.red)),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ],
+      ),
+      body: Consumer<WishlistProvider>(
+        builder: (context, wishlist, child) {
+          if (wishlist.wishlist.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.favorite_border, size: 100, color: Colors.grey.shade300),
+                  const SizedBox(height: 20),
+                  const Text("Wishlist Kosong", style: TextStyle(fontSize: 20, color: Colors.grey)),
+                  const SizedBox(height: 10),
+                  const Text("Tap ❤️ pada produk untuk menambahkan", style: TextStyle(color: Colors.grey)),
+                ],
+              ),
+            );
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(10),
+            itemCount: wishlist.wishlist.length,
+            itemBuilder: (context, index) {
+              final product = wishlist.wishlist[index];
+              return Dismissible(
+                key: Key(product.id.toString()),
+                direction: DismissDirection.endToStart,
+                background: Container(
+                  color: Colors.red,
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.only(right: 20),
+                  child: const Icon(Icons.delete, color: Colors.white),
+                ),
+                onDismissed: (_) => wishlist.removeFromWishlist(product),
+                child: Card(
+                  margin: const EdgeInsets.symmetric(vertical: 8),
+                  child: ListTile(
+                    leading: Container(
+                      width: 60, height: 60,
+                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
+                      child: Image.network(product.imageUrl, fit: BoxFit.contain, errorBuilder: (c,e,s) => const Icon(Icons.error)),
+                    ),
+                    title: Text(product.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text(product.price),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.favorite, color: Colors.red),
+                      onPressed: () => wishlist.removeFromWishlist(product),
+                    ),
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => DetailPage(product: product))),
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+// =======================================================
+// BAGIAN 10: CART PAGE (KERANJANG BELANJA)
 // =======================================================
 class CartPage extends StatelessWidget {
   const CartPage({super.key});
@@ -983,14 +1377,14 @@ class CartPage extends StatelessWidget {
                 ),
               ),
 
-              // Total \u0026 Checkout Section
+              // Total & Checkout Section
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: Theme.of(context).cardColor,
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.grey.withOpacity(0.2),
+                      color: Colors.grey.withAlpha(50),
                       spreadRadius: 1,
                       blurRadius: 10,
                       offset: const Offset(0, -5),
@@ -1014,14 +1408,7 @@ class CartPage extends StatelessWidget {
                       width: double.infinity,
                       height: 50,
                       child: ElevatedButton(
-                        onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text("Fitur Checkout akan segera hadir!"),
-                              backgroundColor: Colors.orange,
-                            ),
-                          );
-                        },
+                        onPressed: () => _showPaymentDialog(context, cart),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blueAccent,
                           foregroundColor: Colors.white,
@@ -1036,6 +1423,163 @@ class CartPage extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+
+  void _showPaymentDialog(BuildContext context, CartProvider cart) {
+    String? selectedMethod;
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return Container(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text("Pilih Metode Pembayaran", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 20),
+
+                // Payment Options
+                _buildPaymentOption(
+                  icon: Icons.account_balance,
+                  title: "Transfer Bank",
+                  subtitle: "BCA, BNI, Mandiri, BRI",
+                  isSelected: selectedMethod == 'transfer',
+                  onTap: () => setModalState(() => selectedMethod = 'transfer'),
+                ),
+                _buildPaymentOption(
+                  icon: Icons.local_shipping,
+                  title: "Cash on Delivery (COD)",
+                  subtitle: "Bayar saat barang sampai",
+                  isSelected: selectedMethod == 'cod',
+                  onTap: () => setModalState(() => selectedMethod = 'cod'),
+                ),
+                _buildPaymentOption(
+                  icon: Icons.wallet,
+                  title: "E-Wallet",
+                  subtitle: "GoPay, OVO, Dana, ShopeePay",
+                  isSelected: selectedMethod == 'ewallet',
+                  onTap: () => setModalState(() => selectedMethod = 'ewallet'),
+                ),
+
+                const SizedBox(height: 20),
+                const Divider(),
+                const SizedBox(height: 10),
+
+                // Order Summary
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text("Total Item:", style: TextStyle(color: Colors.grey)),
+                    Text("${cart.itemCount} item"),
+                  ],
+                ),
+                const SizedBox(height: 5),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text("Total Pembayaran:", style: TextStyle(fontWeight: FontWeight.bold)),
+                    Text(cart.formattedTotal, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueAccent, fontSize: 18)),
+                  ],
+                ),
+
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton(
+                    onPressed: selectedMethod != null ? () {
+                      Navigator.pop(ctx);
+                      _showConfirmationDialog(context, cart, selectedMethod!);
+                    } : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    child: const Text("Lanjutkan", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildPaymentOption({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 5),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: isSelected ? Colors.blueAccent : Colors.grey.shade300, width: isSelected ? 2 : 1),
+      ),
+      child: ListTile(
+        leading: Icon(icon, color: isSelected ? Colors.blueAccent : Colors.grey),
+        title: Text(title, style: TextStyle(fontWeight: isSelected ? FontWeight.bold : FontWeight.normal)),
+        subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
+        trailing: isSelected ? const Icon(Icons.check_circle, color: Colors.blueAccent) : null,
+        onTap: onTap,
+      ),
+    );
+  }
+
+  void _showConfirmationDialog(BuildContext context, CartProvider cart, String method) {
+    String methodName = method == 'transfer' ? 'Transfer Bank' : method == 'cod' ? 'COD' : 'E-Wallet';
+    
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Konfirmasi Pesanan"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Metode: $methodName"),
+            const SizedBox(height: 10),
+            Text("Total: ${cart.formattedTotal}", style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 15),
+            const Text("Pesanan Anda akan segera diproses."),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Batal")),
+          ElevatedButton(
+            onPressed: () {
+              cart.clearCart();
+              Navigator.pop(ctx);
+              Navigator.pop(context); // Back to landing
+              
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Row(
+                    children: [
+                      const Icon(Icons.check_circle, color: Colors.white),
+                      const SizedBox(width: 10),
+                      Expanded(child: Text("Pesanan berhasil dibuat via $methodName!")),
+                    ],
+                  ),
+                  backgroundColor: Colors.green,
+                  duration: const Duration(seconds: 4),
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+            child: const Text("Konfirmasi", style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
     );
   }
