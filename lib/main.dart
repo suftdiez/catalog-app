@@ -5,11 +5,13 @@ import 'package:shared_preferences/shared_preferences.dart'; // Wajib Bab 4
 import 'package:carousel_slider/carousel_slider.dart'; // Wajib Bab 4.2
 import 'package:url_launcher/url_launcher.dart'; // Wajib Bab 4.2
 import 'providers/product_provider.dart'; // File Provider yang baru dibuat
+import 'providers/cart_provider.dart'; // Cart Provider untuk keranjang belanja
 
 // =======================================================
 // BAGIAN 1: DATA MODEL & FORMATTER
 // =======================================================
 class Product {
+  final int id;
   final String name;
   final String price;
   final String category;
@@ -18,16 +20,18 @@ class Product {
   final String imageUrl;
 
   Product({
+    int? id,
     required this.name,
     required this.price,
     required this.category,
     required this.condition,
     required this.description,
     this.imageUrl = 'https://upload.wikimedia.org/wikipedia/commons/1/14/Product_sample_icon_picture.png',
-  });
+  }) : id = id ?? DateTime.now().millisecondsSinceEpoch;
 
   factory Product.fromJson(Map<String, dynamic> json) {
     return Product(
+      id: json['id'] is int ? json['id'] : DateTime.now().millisecondsSinceEpoch,
       name: json['title'] ?? json['name'] ?? 'Tanpa Nama',
       price: json['price'].toString().contains("Rp")
           ? json['price']
@@ -41,6 +45,7 @@ class Product {
 
   Map<String, dynamic> toJson() {
     return {
+      'id': id,
       'name': name, 'price': price, 'category': category,
       'condition': condition, 'description': description, 'imageUrl': imageUrl,
     };
@@ -72,6 +77,7 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ProductProvider()),
+        ChangeNotifierProvider(create: (_) => CartProvider()),
       ],
       child: MyGadgetApp(isLoggedIn: isLoggedIn),
     ),
@@ -222,7 +228,42 @@ class _LandingPageState extends State<LandingPage> {
         title: const Text("MyGadget Store"),
         centerTitle: true,
         actions: [
-          // FITUR BARU BAB 5: TOMBOL ABOUT
+          // FITUR BARU: KERANJANG BELANJA
+          Consumer<CartProvider>(
+            builder: (context, cart, child) {
+              return Stack(
+                alignment: Alignment.center,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.shopping_cart),
+                    tooltip: "Keranjang",
+                    onPressed: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const CartPage()));
+                    },
+                  ),
+                  if (cart.itemCount > 0)
+                    Positioned(
+                      right: 6,
+                      top: 6,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                        child: Text(
+                          cart.itemCount.toString(),
+                          style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+          // FITUR BAB 5: TOMBOL ABOUT
           IconButton(
               icon: const Icon(Icons.info_outline),
               tooltip: "Tentang Aplikasi",
@@ -546,6 +587,128 @@ class _AddProductPageState extends State<AddProductPage> {
 }
 
 // =======================================================
+// BAGIAN 6.1: FORM EDIT PRODUK (FITUR BARU)
+// =======================================================
+class EditProductPage extends StatefulWidget {
+  final Product product;
+  const EditProductPage({super.key, required this.product});
+  @override
+  State<EditProductPage> createState() => _EditProductPageState();
+}
+
+class _EditProductPageState extends State<EditProductPage> {
+  final _formKey = GlobalKey<FormState>();
+  late TextEditingController _nameController;
+  late TextEditingController _priceController;
+  late TextEditingController _descController;
+  late String _selectedCategory;
+  late String _selectedCondition;
+  final List<String> _categories = ["Smartphone", "Laptop", "Tablet", "Aksesoris", "Lainnya", "electronics"];
+
+  @override
+  void initState() {
+    super.initState();
+    // Pre-fill form dengan data produk yang ada
+    _nameController = TextEditingController(text: widget.product.name);
+    // Extract angka dari harga (hilangkan "Rp " dan titik)
+    String priceNum = widget.product.price.replaceAll(RegExp(r'[^0-9]'), '');
+    _priceController = TextEditingController(text: priceNum);
+    _descController = TextEditingController(text: widget.product.description);
+    _selectedCategory = _categories.contains(widget.product.category) 
+        ? widget.product.category 
+        : "Lainnya";
+    _selectedCondition = widget.product.condition;
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _priceController.dispose();
+    _descController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("Edit Produk")),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            TextFormField(
+              controller: _nameController,
+              decoration: const InputDecoration(labelText: "Nama Produk", prefixIcon: Icon(Icons.edit)),
+              validator: (value) => value!.isEmpty ? 'Nama wajib diisi' : null,
+            ),
+            const SizedBox(height: 15),
+            DropdownButtonFormField<String>(
+              decoration: const InputDecoration(labelText: "Kategori", prefixIcon: Icon(Icons.category)),
+              value: _selectedCategory,
+              items: _categories.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+              onChanged: (v) => setState(() => _selectedCategory = v.toString()),
+            ),
+            const SizedBox(height: 15),
+            Row(children: [
+              const Text("Kondisi: ", style: TextStyle(fontWeight: FontWeight.bold)),
+              Radio(value: "Baru", groupValue: _selectedCondition, onChanged: (v) => setState(() => _selectedCondition = v.toString())),
+              const Text("Baru"),
+              Radio(value: "Bekas", groupValue: _selectedCondition, onChanged: (v) => setState(() => _selectedCondition = v.toString())),
+              const Text("Bekas"),
+            ]),
+            const SizedBox(height: 15),
+            TextFormField(
+              controller: _priceController,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly, CurrencyInputFormatter()],
+              decoration: const InputDecoration(labelText: "Harga", prefixIcon: Icon(Icons.attach_money), prefixText: "Rp "),
+              validator: (value) => value!.isEmpty ? 'Harga wajib diisi' : null,
+            ),
+            const SizedBox(height: 15),
+            TextFormField(
+              controller: _descController,
+              decoration: const InputDecoration(labelText: "Deskripsi", prefixIcon: Icon(Icons.description)),
+              maxLines: 3,
+              validator: (value) => value!.isEmpty ? 'Wajib diisi' : null,
+            ),
+            const SizedBox(height: 30),
+            ElevatedButton(
+              onPressed: () {
+                if (_formKey.currentState!.validate()) {
+                  final updatedProduct = Product(
+                    id: widget.product.id, // Retain same ID
+                    name: _nameController.text,
+                    price: "Rp ${_priceController.text}",
+                    category: _selectedCategory,
+                    condition: _selectedCondition,
+                    description: _descController.text,
+                    imageUrl: widget.product.imageUrl, // Keep original image
+                  );
+                  Provider.of<ProductProvider>(context, listen: false)
+                      .updateProduct(widget.product.id, updatedProduct);
+                  Navigator.pop(context); // Back to detail
+                  Navigator.pop(context); // Back to catalog
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Produk berhasil diupdate!"), backgroundColor: Colors.green),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blueAccent,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 15),
+              ),
+              child: const Text("Simpan Perubahan", style: TextStyle(fontSize: 16)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// =======================================================
 // BAGIAN 7: DETAIL PAGE (FITUR BARU BAB 5)
 // =======================================================
 class DetailPage extends StatelessWidget {
@@ -555,7 +718,21 @@ class DetailPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(product.name)),
+      appBar: AppBar(
+        title: Text(product.name),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            tooltip: "Edit Produk",
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => EditProductPage(product: product)),
+              );
+            },
+          ),
+        ],
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -586,6 +763,31 @@ class DetailPage extends StatelessWidget {
             const Text("Deskripsi Produk:", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
             Text(product.description, style: const TextStyle(fontSize: 16, height: 1.5)),
+            const SizedBox(height: 30),
+            // Tombol Tambah ke Keranjang
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Provider.of<CartProvider>(context, listen: false).addToCart(product);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("${product.name} ditambahkan ke keranjang!"),
+                      backgroundColor: Colors.green,
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.shopping_cart),
+                label: const Text("Tambah ke Keranjang", style: TextStyle(fontSize: 16)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueAccent,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -625,6 +827,215 @@ class AboutPage extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// =======================================================
+// BAGIAN 9: CART PAGE (KERANJANG BELANJA)
+// =======================================================
+class CartPage extends StatelessWidget {
+  const CartPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Keranjang Belanja"),
+        actions: [
+          Consumer<CartProvider>(
+            builder: (context, cart, child) {
+              if (cart.cartItems.isEmpty) return const SizedBox();
+              return IconButton(
+                icon: const Icon(Icons.delete_forever),
+                tooltip: "Kosongkan Keranjang",
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (c) => AlertDialog(
+                      title: const Text("Kosongkan Keranjang?"),
+                      content: const Text("Semua item akan dihapus dari keranjang."),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(c), child: const Text("Batal")),
+                        TextButton(
+                          onPressed: () {
+                            cart.clearCart();
+                            Navigator.pop(c);
+                          },
+                          child: const Text("Hapus Semua", style: TextStyle(color: Colors.red)),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ],
+      ),
+      body: Consumer<CartProvider>(
+        builder: (context, cart, child) {
+          if (cart.cartItems.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.shopping_cart_outlined, size: 100, color: Colors.grey.shade300),
+                  const SizedBox(height: 20),
+                  const Text("Keranjang Kosong", style: TextStyle(fontSize: 20, color: Colors.grey)),
+                  const SizedBox(height: 10),
+                  const Text("Tambahkan produk dari katalog", style: TextStyle(color: Colors.grey)),
+                  const SizedBox(height: 30),
+                  ElevatedButton.icon(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.arrow_back),
+                    label: const Text("Kembali"),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return Column(
+            children: [
+              // List Cart Items
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.all(10),
+                  itemCount: cart.cartItems.length,
+                  itemBuilder: (context, index) {
+                    final item = cart.cartItems[index];
+                    return Dismissible(
+                      key: Key(item.product.id.toString()),
+                      direction: DismissDirection.endToStart,
+                      background: Container(
+                        color: Colors.red,
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.only(right: 20),
+                        child: const Icon(Icons.delete, color: Colors.white),
+                      ),
+                      onDismissed: (_) => cart.removeFromCart(item.product),
+                      child: Card(
+                        margin: const EdgeInsets.symmetric(vertical: 8),
+                        elevation: 2,
+                        child: Padding(
+                          padding: const EdgeInsets.all(10),
+                          child: Row(
+                            children: [
+                              // Gambar Produk
+                              Container(
+                                width: 70,
+                                height: 70,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Image.network(
+                                  item.product.imageUrl,
+                                  fit: BoxFit.contain,
+                                  errorBuilder: (c, e, s) => const Icon(Icons.image, size: 40),
+                                ),
+                              ),
+                              const SizedBox(width: 15),
+                              // Info Produk
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      item.product.name,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontWeight: FontWeight.bold),
+                                    ),
+                                    const SizedBox(height: 5),
+                                    Text(
+                                      item.product.price,
+                                      style: const TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.w600),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              // Quantity Controls
+                              Row(
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.remove_circle_outline, color: Colors.red),
+                                    onPressed: () => cart.updateQuantity(item.product.id, item.quantity - 1),
+                                  ),
+                                  Text(
+                                    item.quantity.toString(),
+                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.add_circle_outline, color: Colors.green),
+                                    onPressed: () => cart.updateQuantity(item.product.id, item.quantity + 1),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+
+              // Total \u0026 Checkout Section
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.grey.withOpacity(0.2),
+                      spreadRadius: 1,
+                      blurRadius: 10,
+                      offset: const Offset(0, -5),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text("Total:", style: TextStyle(fontSize: 18)),
+                        Text(
+                          cart.formattedTotal,
+                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.blueAccent),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 15),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text("Fitur Checkout akan segera hadir!"),
+                              backgroundColor: Colors.orange,
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blueAccent,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        child: const Text("Checkout", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

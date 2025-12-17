@@ -75,10 +75,21 @@ class ProductProvider with ChangeNotifier {
 
   // --- FUNGSI 5: HAPUS DATA ---
   void removeProduct(Product product) {
-    _allProducts.remove(product);
-    _filteredProducts.remove(product); // Hapus juga dari tampilan search
+    _allProducts.removeWhere((p) => p.id == product.id);
+    _filteredProducts.removeWhere((p) => p.id == product.id);
     _saveToLocal();
     notifyListeners();
+  }
+
+  // --- FUNGSI 6: UPDATE/EDIT DATA ---
+  void updateProduct(int productId, Product updatedProduct) {
+    int index = _allProducts.indexWhere((p) => p.id == productId);
+    if (index != -1) {
+      _allProducts[index] = updatedProduct;
+      _filteredProducts = _allProducts;
+      _saveToLocal();
+      notifyListeners();
+    }
   }
 
   // --- FUNGSI 6: SIMPAN KE MEMORY HP ---
