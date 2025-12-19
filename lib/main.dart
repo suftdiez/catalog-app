@@ -1,9 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart'; // Wajib Bab 5
 import 'package:shared_preferences/shared_preferences.dart'; // Wajib Bab 4
 import 'package:carousel_slider/carousel_slider.dart'; // Wajib Bab 4.2
 import 'package:url_launcher/url_launcher.dart'; // Wajib Bab 4.2
+import 'package:image_picker/image_picker.dart'; // Image Picker
 import 'providers/product_provider.dart'; // File Provider yang baru dibuat
 import 'providers/cart_provider.dart'; // Cart Provider untuk keranjang belanja
 import 'providers/wishlist_provider.dart'; // Wishlist Provider
@@ -642,7 +644,7 @@ class _CatalogPageState extends State<CatalogPage> {
 }
 
 // =======================================================
-// BAGIAN 6: FORM TAMBAH PRODUK (DIPERTAHANKAN)
+// BAGIAN 6: FORM TAMBAH PRODUK (WITH IMAGE PICKER)
 // =======================================================
 class AddProductPage extends StatefulWidget {
   const AddProductPage({super.key});
@@ -658,6 +660,57 @@ class _AddProductPageState extends State<AddProductPage> {
   String _selectedCategory = "Smartphone";
   String _selectedCondition = "Baru";
   final List<String> _categories = ["Smartphone", "Laptop", "Tablet", "Aksesoris", "Lainnya"];
+  
+  // Image picker
+  String _imageUrl = '';
+  String? _localImagePath;
+  final ImagePicker _picker = ImagePicker();
+
+  Future<void> _pickFromGallery() async {
+    try {
+      final XFile? image = await _picker.pickImage(source: ImageSource.gallery, maxWidth: 800);
+      if (image != null) {
+        setState(() {
+          _localImagePath = image.path;
+          _imageUrl = '';
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  void _showUrlInputDialog() {
+    final urlController = TextEditingController(text: _imageUrl);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("URL Gambar"),
+        content: TextField(
+          controller: urlController,
+          decoration: const InputDecoration(
+            hintText: "https://example.com/image.jpg",
+            prefixIcon: Icon(Icons.link),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Batal")),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                _imageUrl = urlController.text;
+                _localImagePath = null;
+              });
+              Navigator.pop(ctx);
+            },
+            child: const Text("Simpan"),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -668,6 +721,68 @@ class _AddProductPageState extends State<AddProductPage> {
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
+            // Image Picker Section
+            Container(
+              height: 180,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: _localImagePath != null || _imageUrl.isNotEmpty
+                  ? Stack(
+                      children: [
+                        Center(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: _localImagePath != null
+                                ? Image.file(File(_localImagePath!), fit: BoxFit.contain, height: 170)
+                                : Image.network(_imageUrl, fit: BoxFit.contain, height: 170, 
+                                    errorBuilder: (c,e,s) => const Icon(Icons.broken_image, size: 60)),
+                          ),
+                        ),
+                        Positioned(
+                          top: 5, right: 5,
+                          child: IconButton(
+                            icon: const Icon(Icons.close, color: Colors.red),
+                            onPressed: () => setState(() { _localImagePath = null; _imageUrl = ''; }),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.add_photo_alternate, size: 50, color: Colors.grey.shade400),
+                        const SizedBox(height: 10),
+                        const Text("Tambah Gambar Produk", style: TextStyle(color: Colors.grey)),
+                      ],
+                    ),
+            ),
+            const SizedBox(height: 10),
+            
+            // Image Picker Buttons
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _pickFromGallery,
+                    icon: const Icon(Icons.photo_library),
+                    label: const Text("Galeri"),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: _showUrlInputDialog,
+                    icon: const Icon(Icons.link),
+                    label: const Text("URL"),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            
             TextFormField(
               controller: _nameController,
               decoration: const InputDecoration(labelText: "Nama Produk", prefixIcon: Icon(Icons.edit)),
@@ -706,14 +821,21 @@ class _AddProductPageState extends State<AddProductPage> {
             ElevatedButton(
               onPressed: () {
                 if (_formKey.currentState!.validate()) {
+                  // Determine image URL to use
+                  String finalImageUrl = _imageUrl.isNotEmpty 
+                      ? _imageUrl 
+                      : (_localImagePath != null 
+                          ? 'file://$_localImagePath' 
+                          : 'https://upload.wikimedia.org/wikipedia/commons/1/14/Product_sample_icon_picture.png');
+                  
                   final newProduct = Product(
                     name: _nameController.text,
                     price: "Rp ${_priceController.text}",
                     category: _selectedCategory,
                     condition: _selectedCondition,
                     description: _descController.text,
+                    imageUrl: finalImageUrl,
                   );
-                  // PANGGIL PROVIDER UNTUK SIMPAN DATA
                   Provider.of<ProductProvider>(context, listen: false).addProduct(newProduct);
                   Navigator.pop(context);
                 }
