@@ -8,6 +8,7 @@ import 'providers/product_provider.dart'; // File Provider yang baru dibuat
 import 'providers/cart_provider.dart'; // Cart Provider untuk keranjang belanja
 import 'providers/wishlist_provider.dart'; // Wishlist Provider
 import 'providers/theme_provider.dart'; // Theme Provider untuk Dark Mode
+import 'providers/user_provider.dart'; // User Provider untuk profil
 
 // =======================================================
 // BAGIAN 1: DATA MODEL & FORMATTER
@@ -108,6 +109,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => CartProvider()),
         ChangeNotifierProvider(create: (_) => WishlistProvider()),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => UserProvider()),
       ],
       child: MyGadgetApp(isLoggedIn: isLoggedIn),
     ),
@@ -361,7 +363,7 @@ class _LandingPageState extends State<LandingPage> {
   }
 }
 
-// WIDGET PROFILE CARD (DIPERTAHANKAN)
+// WIDGET PROFILE CARD (UPDATED WITH PROFILE NAVIGATION)
 class ProfileCard extends StatelessWidget {
   final String name;
   final String role;
@@ -386,20 +388,38 @@ class ProfileCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Row(
-            children: [
-              const CircleAvatar(radius: 25, backgroundColor: Colors.blueAccent, child: Icon(Icons.person, color: Colors.white)),
-              const SizedBox(width: 15),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          // Tappable profile row
+          InkWell(
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage())),
+            borderRadius: BorderRadius.circular(10),
+            child: Consumer<UserProvider>(
+              builder: (context, userProvider, child) {
+                final profile = userProvider.profile;
+                return Row(
                   children: [
-                    Text(name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                    Text(role, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                    CircleAvatar(
+                      radius: 25,
+                      backgroundColor: Colors.blueAccent,
+                      child: Text(
+                        profile.name.isNotEmpty ? profile.name[0].toUpperCase() : "P",
+                        style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    const SizedBox(width: 15),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(profile.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          Text(profile.memberType, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, color: Colors.grey),
                   ],
-                ),
-              ),
-            ],
+                );
+              },
+            ),
           ),
           const SizedBox(height: 15),
           SizedBox(
@@ -407,11 +427,11 @@ class ProfileCard extends StatelessWidget {
             height: 35,
             child: OutlinedButton.icon(
               onPressed: _launchURL,
-              icon: const Icon(Icons.chat, size: 18),
+              icon: const Icon(Icons.support_agent, size: 18),
               label: const Text("Hubungi CS (WA)"),
               style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.green,
-                side: const BorderSide(color: Colors.green),
+                foregroundColor: Colors.blueAccent,
+                side: const BorderSide(color: Colors.blueAccent),
               ),
             ),
           )
@@ -1047,9 +1067,282 @@ class _DetailPageState extends State<DetailPage> {
     );
   }
 }
+// =======================================================
+// BAGIAN 8: PROFILE PAGE (FITUR BARU)
+// =======================================================
+class ProfilePage extends StatelessWidget {
+  const ProfilePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Profil Saya"),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit),
+            tooltip: "Edit Profil",
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const EditProfilePage())),
+          ),
+        ],
+      ),
+      body: Consumer<UserProvider>(
+        builder: (context, userProvider, child) {
+          final profile = userProvider.profile;
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              children: [
+                // Avatar Section
+                CircleAvatar(
+                  radius: 60,
+                  backgroundColor: Colors.blueAccent,
+                  child: profile.avatarUrl.isNotEmpty
+                      ? ClipOval(child: Image.network(profile.avatarUrl, fit: BoxFit.cover, width: 120, height: 120))
+                      : Text(
+                          profile.name.isNotEmpty ? profile.name[0].toUpperCase() : "P",
+                          style: const TextStyle(fontSize: 48, color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                ),
+                const SizedBox(height: 15),
+                Text(profile.name, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 5),
+                Text(profile.email, style: const TextStyle(color: Colors.grey, fontSize: 16)),
+                const SizedBox(height: 5),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade100,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(profile.memberType, style: TextStyle(color: Colors.amber.shade800, fontWeight: FontWeight.bold)),
+                ),
+                
+                const SizedBox(height: 30),
+                
+                // Info Cards
+                _buildInfoCard(context, Icons.phone, "Telepon", profile.phone.isNotEmpty ? profile.phone : "Belum diisi"),
+                _buildInfoCard(context, Icons.location_on, "Alamat", profile.address.isNotEmpty ? profile.address : "Belum diisi"),
+                
+                const SizedBox(height: 20),
+                
+                // Statistics Card
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(15),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("Statistik", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        const Divider(),
+                        Consumer<WishlistProvider>(
+                          builder: (context, wishlist, child) {
+                            return _buildStatRow(Icons.favorite, "Wishlist", "${wishlist.itemCount} produk");
+                          },
+                        ),
+                        Consumer<CartProvider>(
+                          builder: (context, cart, child) {
+                            return _buildStatRow(Icons.shopping_cart, "Keranjang", "${cart.itemCount} item");
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                
+                const SizedBox(height: 20),
+                
+                // Edit Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const EditProfilePage())),
+                    icon: const Icon(Icons.edit),
+                    label: const Text("Edit Profil", style: TextStyle(fontSize: 16)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blueAccent,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildInfoCard(BuildContext context, IconData icon, String label, String value) {
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 5),
+      child: ListTile(
+        leading: Icon(icon, color: Colors.blueAccent),
+        title: Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        subtitle: Text(value, style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 16)),
+      ),
+    );
+  }
+
+  Widget _buildStatRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.grey, size: 20),
+          const SizedBox(width: 10),
+          Text(label),
+          const Spacer(),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+        ],
+      ),
+    );
+  }
+}
 
 // =======================================================
-// BAGIAN 8: ABOUT PAGE (FITUR BARU BAB 5)
+// BAGIAN 9: EDIT PROFILE PAGE
+// =======================================================
+class EditProfilePage extends StatefulWidget {
+  const EditProfilePage({super.key});
+
+  @override
+  State<EditProfilePage> createState() => _EditProfilePageState();
+}
+
+class _EditProfilePageState extends State<EditProfilePage> {
+  final _formKey = GlobalKey<FormState>();
+  late TextEditingController _nameController;
+  late TextEditingController _phoneController;
+  late TextEditingController _addressController;
+
+  @override
+  void initState() {
+    super.initState();
+    final profile = Provider.of<UserProvider>(context, listen: false).profile;
+    _nameController = TextEditingController(text: profile.name);
+    _phoneController = TextEditingController(text: profile.phone);
+    _addressController = TextEditingController(text: profile.address);
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _phoneController.dispose();
+    _addressController.dispose();
+    super.dispose();
+  }
+
+  void _saveProfile() {
+    if (_formKey.currentState!.validate()) {
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      final currentProfile = userProvider.profile;
+      
+      final updatedProfile = currentProfile.copyWith(
+        name: _nameController.text,
+        phone: _phoneController.text,
+        address: _addressController.text,
+      );
+      
+      userProvider.updateProfile(updatedProfile);
+      
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Profil berhasil diupdate!"), backgroundColor: Colors.green),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("Edit Profil")),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            // Avatar Preview
+            Center(
+              child: Consumer<UserProvider>(
+                builder: (context, userProvider, child) {
+                  return CircleAvatar(
+                    radius: 50,
+                    backgroundColor: Colors.blueAccent,
+                    child: Text(
+                      _nameController.text.isNotEmpty ? _nameController.text[0].toUpperCase() : "P",
+                      style: const TextStyle(fontSize: 36, color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 30),
+            
+            // Name Field
+            TextFormField(
+              controller: _nameController,
+              decoration: const InputDecoration(
+                labelText: "Nama Lengkap",
+                prefixIcon: Icon(Icons.person),
+                border: OutlineInputBorder(),
+              ),
+              validator: (value) => value!.isEmpty ? 'Nama wajib diisi' : null,
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 15),
+            
+            // Phone Field
+            TextFormField(
+              controller: _phoneController,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(
+                labelText: "No. Telepon",
+                prefixIcon: Icon(Icons.phone),
+                border: OutlineInputBorder(),
+                hintText: "Contoh: 081234567890",
+              ),
+            ),
+            const SizedBox(height: 15),
+            
+            // Address Field
+            TextFormField(
+              controller: _addressController,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: "Alamat Pengiriman",
+                prefixIcon: Icon(Icons.location_on),
+                border: OutlineInputBorder(),
+                hintText: "Masukkan alamat lengkap...",
+                alignLabelWithHint: true,
+              ),
+            ),
+            const SizedBox(height: 30),
+            
+            // Save Button
+            SizedBox(
+              height: 50,
+              child: ElevatedButton(
+                onPressed: _saveProfile,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueAccent,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                child: const Text("Simpan Perubahan", style: TextStyle(fontSize: 16)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// =======================================================
+// BAGIAN 10: ABOUT PAGE (FITUR BARU BAB 5)
 // =======================================================
 class AboutPage extends StatelessWidget {
   const AboutPage({super.key});
