@@ -1,0 +1,40 @@
+version: '3'
+services:
+  # 1. BROKER MQTT (Tukang Pos)
+  mosquitto:
+    image: eclipse-mosquitto
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+
+  # 2. DATABASE (Buku Catatan)
+  influxdb:
+    image: influxdb:1.8
+    ports:
+      - "8086:8086"
+    environment:
+      - INFLUXDB_DB=katalog_db
+
+  # 3. NODE-RED (Otak Pengatur)
+  nodered:
+    image: nodered/node-red
+    ports:
+      - "1880:1880"
+    links:
+      - mosquitto
+      - influxdb
+
+  # 4. GRAFANA (Layar Dashboard)
+  grafana:
+    image: grafana/grafana
+    ports:
+      - "3000:3000"
+    links:
+      - influxdb
+
+volumes:
+  mosquitto_data:
+  mosquitto_log:
